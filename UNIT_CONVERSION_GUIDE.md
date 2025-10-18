@@ -174,7 +174,7 @@ GET /
   products[
     // Response:
     {
-      id: 1,
+      id: 'uuid',
       name: 'Cotton Fabric',
       weight: 8.2,
       unit: 'yard', // Always yard

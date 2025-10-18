@@ -149,8 +149,8 @@ POST /api/colors
 POST /api/products
 {
   "name": "Green Khadar Fabric",
-  "fabricId": 1,
-  "colorId": 2,
+  "fabricId": "fabric-uuid",
+  "colorId": "color-uuid",
   "size": "Standard"
 }
 ```
@@ -207,7 +207,7 @@ Fabrics (1) ----< (M) Products (M) >---- (1) Colors
 
 **fabrics**
 
-- id (Integer, PK, Auto-increment)
+- id (UUID, PK)
 - name (String, Unique)
 - description (Text, Nullable)
 - is_active (Boolean)
@@ -215,7 +215,7 @@ Fabrics (1) ----< (M) Products (M) >---- (1) Colors
 
 **colors**
 
-- id (Integer, PK, Auto-increment)
+- id (UUID, PK)
 - name (String, Unique)
 - hex_code (String, Nullable)
 - description (Text, Nullable)
@@ -224,15 +224,15 @@ Fabrics (1) ----< (M) Products (M) >---- (1) Colors
 
 **products**
 
-- id (Integer, PK, Auto-increment)
+- id (UUID, PK)
 - name (String)
 - description (Text, Nullable)
 - category (String, Nullable)
 - price (Decimal)
 - weight (Decimal, Nullable)
 - unit (String, Nullable)
-- **fabric_id (Integer, FK → fabrics.id, Nullable)**
-- **color_id (Integer, FK → colors.id, Nullable)**
+- **fabric_id (UUID, FK → fabrics.id, Nullable)**
+- **color_id (UUID, FK → colors.id, Nullable)**
 - size (String, Nullable)
 - is_active (Boolean)
 - created_at, updated_at, deleted_at
@@ -271,8 +271,8 @@ curl -X POST http://localhost:3000/api/products \
     "name": "Green Khadar Fabric",
     "price": 25.00,
     "unit": "yard",
-    "fabricId": 1,
-    "colorId": 2,
+    "fabricId": "fabric-uuid-here",
+    "colorId": "color-uuid-here",
     "size": "Standard"
   }'
 ```
@@ -286,17 +286,17 @@ curl http://localhost:3000/api/products
 # Response:
 [
   {
-    "id": 1,
+    "id": "product-uuid",
     "name": "Green Khadar Fabric",
     "price": 25.00,
     "unit": "yard",
     "fabric": {
-      "id": 1,
+      "id": "fabric-uuid",
       "name": "Khadar",
       "description": "Traditional fabric"
     },
     "color": {
-      "id": 2,
+      "id": "color-uuid",
       "name": "Green",
       "hexCode": "#00FF00"
     },
@@ -335,7 +335,7 @@ curl http://localhost:3000/api/products
   - FabricsModule (for FabricsService)
   - ColorsModule (for ColorsService)
 - **Service Updated**: Now handles fabricId and colorId
-- **DTOs Updated**: Accept integer ID references
+- **DTOs Updated**: Accept UUID references instead of strings
 
 ## Documentation Updated
 

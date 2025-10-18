@@ -1,16 +1,16 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsInt, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateInventoryDto {
-  @ApiProperty({ example: 1 })
-  @IsInt()
+  @ApiProperty({ example: 'warehouse-uuid' })
+  @IsString()
   @IsNotEmpty()
-  warehouseId: number;
+  warehouseId: string;
 
-  @ApiProperty({ example: 1 })
-  @IsInt()
+  @ApiProperty({ example: 'product-uuid' })
+  @IsString()
   @IsNotEmpty()
-  productId: number;
+  productId: string;
 
   @ApiProperty({
     example: 100,

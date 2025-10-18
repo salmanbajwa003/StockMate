@@ -63,7 +63,7 @@ export class InitialSchema1729267200000 implements MigrationInterface {
     // Create tables
     await queryRunner.query(`
             CREATE TABLE "fabrics" (
-                "id" SERIAL NOT NULL,
+                "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
                 "name" character varying(100) NOT NULL,
                 "description" text,
                 "is_active" boolean NOT NULL DEFAULT true,
@@ -129,7 +129,7 @@ docker-compose exec postgres psql -U wms_user -d wms_db -c "\d+ products"
 
 ```sql
 CREATE TABLE fabrics (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
     is_active BOOLEAN DEFAULT true,
@@ -143,7 +143,7 @@ CREATE TABLE fabrics (
 
 ```sql
 CREATE TABLE colors (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) UNIQUE NOT NULL,
     hex_code VARCHAR(7),
     description TEXT,
@@ -158,7 +158,7 @@ CREATE TABLE colors (
 
 ```sql
 CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
@@ -173,7 +173,7 @@ CREATE TABLE users (
 
 ```sql
 CREATE TABLE customers (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     phone VARCHAR(20),
@@ -188,10 +188,10 @@ CREATE TABLE customers (
 
 ```sql
 CREATE TABLE invoices (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_number VARCHAR(50) UNIQUE NOT NULL,
-    customer_id INTEGER REFERENCES customers(id),
-    warehouse_id INTEGER REFERENCES warehouses(id),
+    customer_id UUID REFERENCES customers(id),
+    warehouse_id UUID REFERENCES warehouses(id),
     invoice_date TIMESTAMP DEFAULT now(),
     due_date TIMESTAMP,
     status VARCHAR(20) DEFAULT 'draft',
@@ -212,9 +212,9 @@ CREATE TABLE invoices (
 
 ```sql
 CREATE TABLE invoice_items (
-    id SERIAL PRIMARY KEY,
-    invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
-    product_id INTEGER REFERENCES products(id),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    invoice_id UUID REFERENCES invoices(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(id),
     quantity INTEGER NOT NULL,
     unit_price DECIMAL(10,2) NOT NULL,
     discount DECIMAL(5,2) DEFAULT 0,
@@ -239,8 +239,8 @@ ALTER TABLE products DROP COLUMN fabric;  -- Was string
 ALTER TABLE products DROP COLUMN color;   -- Was string
 
 -- Add foreign key columns
-ALTER TABLE products ADD COLUMN fabric_id INTEGER REFERENCES fabrics(id);
-ALTER TABLE products ADD COLUMN color_id INTEGER REFERENCES colors(id);
+ALTER TABLE products ADD COLUMN fabric_id UUID REFERENCES fabrics(id);
+ALTER TABLE products ADD COLUMN color_id UUID REFERENCES colors(id);
 ```
 
 #### Inventory Table Changes

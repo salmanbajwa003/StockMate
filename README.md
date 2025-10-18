@@ -283,7 +283,7 @@ The Swagger UI provides:
 
 ### Users
 
-- `id` (Integer, Primary Key, Auto-increment)
+- `id` (UUID, Primary Key)
 - `name` (String)
 - `username` (String, Unique)
 - `email` (String, Unique)
@@ -292,7 +292,7 @@ The Swagger UI provides:
 
 ### Warehouses
 
-- `id` (Integer, Primary Key, Auto-increment)
+- `id` (UUID, Primary Key)
 - `name` (String)
 - `address` (String)
 - `city` (String)
@@ -305,7 +305,7 @@ The Swagger UI provides:
 
 ### Fabrics
 
-- `id` (Integer, Primary Key, Auto-increment)
+- `id` (UUID, Primary Key)
 - `name` (String, Unique) - e.g., 'Khadar', 'Cotton', 'Silk'
 - `description` (Text)
 - `isActive` (Boolean)
@@ -313,7 +313,7 @@ The Swagger UI provides:
 
 ### Colors
 
-- `id` (Integer, Primary Key, Auto-increment)
+- `id` (UUID, Primary Key)
 - `name` (String, Unique) - e.g., 'Green', 'Blue', 'Red'
 - `hexCode` (String) - Optional hex color code like #00FF00
 - `description` (Text)
@@ -322,24 +322,24 @@ The Swagger UI provides:
 
 ### Products
 
-- `id` (Integer, Primary Key, Auto-increment)
+- `id` (UUID, Primary Key)
 - `name` (String)
 - `description` (Text)
 - `category` (String)
 - `price` (Decimal)
 - `weight` (Decimal)
 - `unit` (String)
-- `fabricId` (Integer, Foreign Key) - References Fabrics table
-- `colorId` (Integer, Foreign Key) - References Colors table
+- `fabricId` (UUID, Foreign Key) - References Fabrics table
+- `colorId` (UUID, Foreign Key) - References Colors table
 - `size` (String) - e.g., 'S', 'M', 'L', 'XL'
 - `isActive` (Boolean)
 - `createdAt`, `updatedAt`, `deletedAt` (Timestamps)
 
 ### Inventory
 
-- `id` (Integer, Primary Key, Auto-increment)
-- `warehouseId` (Integer, Foreign Key)
-- `productId` (Integer, Foreign Key)
+- `id` (UUID, Primary Key)
+- `warehouseId` (UUID, Foreign Key)
+- `productId` (UUID, Foreign Key)
 - `quantity` (Integer)
 - `minimumQuantity` (Integer)
 - `maximumQuantity` (Integer)
@@ -350,7 +350,7 @@ The Swagger UI provides:
 
 ### Customers
 
-- `id` (Integer, Primary Key, Auto-increment)
+- `id` (UUID, Primary Key)
 - `name` (String)
 - `email` (String, Unique)
 - `phone` (String)
@@ -359,10 +359,10 @@ The Swagger UI provides:
 
 ### Invoices
 
-- `id` (Integer, Primary Key, Auto-increment)
+- `id` (UUID, Primary Key)
 - `invoiceNumber` (String, Unique)
-- `customerId` (Integer, Foreign Key)
-- `warehouseId` (Integer, Foreign Key)
+- `customerId` (UUID, Foreign Key)
+- `warehouseId` (UUID, Foreign Key)
 - `invoiceDate` (Timestamp)
 - `dueDate` (Timestamp)
 - `status` (Enum: draft, pending, paid, cancelled)
@@ -377,9 +377,9 @@ The Swagger UI provides:
 
 ### Invoice Items
 
-- `id` (Integer, Primary Key, Auto-increment)
-- `invoiceId` (Integer, Foreign Key)
-- `productId` (Integer, Foreign Key)
+- `id` (UUID, Primary Key)
+- `invoiceId` (UUID, Foreign Key)
+- `productId` (UUID, Foreign Key)
 - `quantity` (Integer)
 - `unitPrice` (Decimal)
 - `discount` (Decimal)
@@ -503,7 +503,7 @@ Response:
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
-    "id": 1,
+    "id": "uuid",
     "name": "John Doe",
     "username": "johndoe",
     "email": "john.doe@example.com"
@@ -527,7 +527,7 @@ Response:
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
-    "id": 1,
+    "id": "uuid",
     "name": "John Doe",
     "username": "johndoe",
     "email": "john.doe@example.com"
@@ -580,8 +580,8 @@ POST /api/products
   "price": 25.00,
   "weight": 5,
   "unit": "kg",  # Will be automatically converted to yard
-  "fabricId": 1,
-  "colorId": 2,
+  "fabricId": "fabric-uuid-here",
+  "colorId": "color-uuid-here",
   "size": "Standard",
   "isActive": true
 }
@@ -599,8 +599,8 @@ First time adding product to warehouse:
 ```bash
 POST /api/inventory
 {
-  "warehouseId": 1,
-  "productId": 1,
+  "warehouseId": "warehouse-uuid",
+  "productId": "product-uuid",
   "quantity": 5,
   "minimumQuantity": 10
 }
@@ -611,8 +611,8 @@ Adding same product again (auto-increments from 5 to 10):
 ```bash
 POST /api/inventory
 {
-  "warehouseId": 1,
-  "productId": 1,
+  "warehouseId": "warehouse-uuid",
+  "productId": "product-uuid",
   "quantity": 5
 }
 ```
@@ -625,8 +625,8 @@ Create an invoice for a customer purchase:
 POST /api/invoices
 {
   "invoiceNumber": "INV-2025-001",
-  "customerId": 1,
-  "warehouseId": 1,
+  "customerId": "customer-uuid",
+  "warehouseId": "warehouse-uuid",
   "invoiceDate": "2025-10-18T10:00:00Z",
   "dueDate": "2025-11-18T10:00:00Z",
   "status": "pending",
@@ -635,7 +635,7 @@ POST /api/invoices
   "notes": "Bulk order for green khadar",
   "items": [
     {
-      "productId": 1,
+      "productId": "product-uuid",
       "quantity": 3,
       "unitPrice": 25.00,
       "discount": 0,

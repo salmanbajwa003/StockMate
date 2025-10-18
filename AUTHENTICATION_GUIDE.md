@@ -7,8 +7,7 @@ This warehouse management system now includes a complete authentication system w
 ## User Table Schema
 
 The `users` table includes:
-
-- `id` (Integer, Primary Key, Auto-increment)
+- `id` (UUID, Primary Key)
 - `name` (String) - Full name of the user
 - `username` (String, Unique) - Username for login
 - `email` (String, Unique) - Email address
@@ -20,7 +19,6 @@ The `users` table includes:
 ### Authentication Endpoints
 
 #### 1. Register a New User
-
 ```http
 POST /api/auth/register
 Content-Type: application/json
@@ -34,7 +32,6 @@ Content-Type: application/json
 ```
 
 **Response (201 Created):**
-
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -48,7 +45,6 @@ Content-Type: application/json
 ```
 
 #### 2. Login
-
 ```http
 POST /api/auth/login
 Content-Type: application/json
@@ -60,7 +56,6 @@ Content-Type: application/json
 ```
 
 **Response (200 OK):**
-
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -74,14 +69,12 @@ Content-Type: application/json
 ```
 
 #### 3. Get User Profile (Protected)
-
 ```http
 GET /api/auth/profile
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
 **Response (200 OK):**
-
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -96,7 +89,6 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ### User Management Endpoints
 
 #### 1. Create User
-
 ```http
 POST /api/users
 Content-Type: application/json
@@ -110,19 +102,16 @@ Content-Type: application/json
 ```
 
 #### 2. Get All Users
-
 ```http
 GET /api/users
 ```
 
 #### 3. Get User by ID
-
 ```http
 GET /api/users/{id}
 ```
 
 #### 4. Update User
-
 ```http
 PATCH /api/users/{id}
 Content-Type: application/json
@@ -136,7 +125,6 @@ Content-Type: application/json
 Note: Password cannot be updated through this endpoint for security reasons.
 
 #### 5. Delete User
-
 ```http
 DELETE /api/users/{id}
 ```
@@ -188,10 +176,9 @@ curl -X GET http://localhost:3000/api/auth/profile \
 - **Payload**: Contains user ID, username, and email
 
 Token payload structure:
-
 ```json
 {
-  "sub": 1,
+  "sub": "user-uuid",
   "username": "johndoe",
   "email": "john.doe@example.com",
   "iat": 1697632800,
@@ -214,7 +201,6 @@ JWT_SECRET=your-secret-key-change-in-production
 ### Current Implementation
 
 This implementation uses **plain text password storage** as requested. This means:
-
 - Passwords are stored exactly as entered
 - Authentication compares passwords directly (no hashing)
 - Passwords are visible in the database
@@ -224,13 +210,12 @@ This implementation uses **plain text password storage** as requested. This mean
 For production environments, you should:
 
 1. **Hash passwords** using bcrypt:
-
    ```typescript
    import * as bcrypt from 'bcrypt';
-
+   
    // When creating user
    const hashedPassword = await bcrypt.hash(password, 10);
-
+   
    // When verifying
    const isMatch = await bcrypt.compare(password, user.password);
    ```
@@ -259,7 +244,6 @@ For production environments, you should:
 ## Error Responses
 
 ### 401 Unauthorized
-
 ```json
 {
   "statusCode": 401,
@@ -269,7 +253,6 @@ For production environments, you should:
 ```
 
 ### 409 Conflict
-
 ```json
 {
   "statusCode": 409,
@@ -279,7 +262,6 @@ For production environments, you should:
 ```
 
 ### 404 Not Found
-
 ```json
 {
   "statusCode": 404,
@@ -291,7 +273,6 @@ For production environments, you should:
 ## Testing the Authentication
 
 ### 1. Register a new user
-
 ```bash
 curl -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
@@ -304,7 +285,6 @@ curl -X POST http://localhost:3000/api/auth/register \
 ```
 
 ### 2. Login
-
 ```bash
 curl -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
@@ -315,7 +295,6 @@ curl -X POST http://localhost:3000/api/auth/login \
 ```
 
 ### 3. Get profile (replace TOKEN with your actual token)
-
 ```bash
 curl -X GET http://localhost:3000/api/auth/profile \
   -H "Authorization: Bearer TOKEN"
@@ -350,3 +329,4 @@ async protectedRoute(@Request() req) {
 ---
 
 **Note**: This authentication system is functional but simplified. For production use, please implement proper password hashing, refresh tokens, and other security best practices mentioned above.
+

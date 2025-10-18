@@ -244,16 +244,16 @@ POST /api/products
 # First time - creates new entry
 POST /api/inventory
 {
-  "warehouseId": 1,
-  "productId": 1,
+  "warehouseId": "warehouse-uuid",
+  "productId": "product-uuid",
   "quantity": 5
 }
 
 # Same product again - increments to 10
 POST /api/inventory
 {
-  "warehouseId": 1,
-  "productId": 1,
+  "warehouseId": "warehouse-uuid",
+  "productId": "product-uuid",
   "quantity": 5
 }
 ```
@@ -276,13 +276,13 @@ POST /api/customers
 POST /api/invoices
 {
   "invoiceNumber": "INV-2025-001",
-  "customerId": 1,
-  "warehouseId": 1,
+  "customerId": "customer-uuid",
+  "warehouseId": "warehouse-uuid",
   "status": "pending",
   "taxRate": 10.0,
   "items": [
     {
-      "productId": 1,
+      "productId": "product-uuid",
       "quantity": 3,
       "unitPrice": 25.00
     }

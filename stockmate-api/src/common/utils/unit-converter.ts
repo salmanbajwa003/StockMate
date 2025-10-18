@@ -48,7 +48,7 @@ const PIECE_UNITS = [UnitType.PIECE, UnitType.ROLL];
 
 export interface ConversionResult {
   value: number;
-  unit: string;
+  unit: UnitType;
   originalValue: number;
   originalUnit: string;
   conversionApplied: boolean;
@@ -58,13 +58,13 @@ export interface ConversionResult {
  * Converts any supported unit to the standard unit (yard)
  */
 export function convertToStandardUnit(value: number, fromUnit: string): ConversionResult {
-  const normalizedUnit = fromUnit.toLowerCase().trim();
+  const normalizedUnit = fromUnit.toLowerCase().trim() as UnitType;
 
   // If already in standard unit, no conversion needed
-  if (normalizedUnit === STANDARD_UNIT) {
+  if (normalizedUnit === UnitType.YARD) {
     return {
       value,
-      unit: STANDARD_UNIT,
+      unit: UnitType.YARD,
       originalValue: value,
       originalUnit: fromUnit,
       conversionApplied: false,
@@ -121,7 +121,7 @@ export function convertToStandardUnit(value: number, fromUnit: string): Conversi
  * Converts from standard unit (yard) to another unit
  */
 export function convertFromStandardUnit(value: number, toUnit: string): ConversionResult {
-  const normalizedUnit = toUnit.toLowerCase().trim();
+  const normalizedUnit = toUnit.toLowerCase().trim() as UnitType;
 
   // If already in target unit
   if (normalizedUnit === STANDARD_UNIT) {

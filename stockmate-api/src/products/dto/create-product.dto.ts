@@ -1,5 +1,14 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsNumber, IsUUID } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsBoolean,
+  IsNumber,
+  IsUUID,
+  IsEnum,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UnitType } from '@/common/utils/unit-converter';
 
 export class CreateProductDto {
   @ApiProperty({ example: 'Green Khadar Fabric' })
@@ -28,9 +37,9 @@ export class CreateProductDto {
   weight?: number;
 
   @ApiPropertyOptional({ example: 'yard' })
-  @IsString()
+  @IsEnum(UnitType)
   @IsOptional()
-  unit?: string;
+  unit?: UnitType;
 
   @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174000' })
   @IsUUID()
@@ -52,4 +61,3 @@ export class CreateProductDto {
   @IsOptional()
   isActive?: boolean;
 }
-

@@ -3,6 +3,7 @@ import { BaseEntity } from '../../common/entities/base.entity';
 import { Inventory } from '../../inventory/entities/inventory.entity';
 import { Fabric } from '../../fabrics/entities/fabric.entity';
 import { Color } from '../../colors/entities/color.entity';
+import { UnitType } from '@/common/utils/unit-converter';
 
 @Entity('products')
 export class Product extends BaseEntity {
@@ -21,8 +22,12 @@ export class Product extends BaseEntity {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   weight: number;
 
-  @Column({ length: 50, nullable: true })
-  unit: string;
+  @Column({
+    type: 'enum',
+    enum: UnitType,
+    default: UnitType.METER,
+  })
+  unit: UnitType;
 
   // Clothing-specific fields with relationships
   @ManyToOne(() => Fabric, (fabric) => fabric.products, { eager: true, nullable: true })

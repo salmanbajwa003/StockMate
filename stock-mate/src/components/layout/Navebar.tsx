@@ -1,9 +1,13 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AppBar, Toolbar, Typography, Box, Button } from '@mui/material';
+import LogoutIcon from '@mui/icons-material/Logout';
 import logo from '../../assets/warehouse.png';
+import { useAuth } from '../../context/AuthContext';
 
 const Navbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const navLinks = [
     { to: '/products', label: 'Products' },
@@ -11,6 +15,11 @@ const Navbar = () => {
     { to: '/customers', label: 'Customers' },
     { to: '/warehouse', label: 'Warehouse' },
   ];
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <AppBar
@@ -56,7 +65,7 @@ const Navbar = () => {
         </Box>
 
         {/* Right: Nav Links */}
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           {navLinks.map((link) => {
             const isActive = location.pathname === link.to;
             return (
@@ -80,6 +89,26 @@ const Navbar = () => {
               </Button>
             );
           })}
+          {user && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 2 }}>
+              <Typography variant="body2" sx={{ color: 'white' }}>
+                {user.name}
+              </Typography>
+              <Button
+                onClick={handleLogout}
+                startIcon={<LogoutIcon />}
+                sx={{
+                  color: 'white',
+                  textTransform: 'none',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                  },
+                }}
+              >
+                Logout
+              </Button>
+            </Box>
+          )}
         </Box>
       </Toolbar>
     </AppBar>

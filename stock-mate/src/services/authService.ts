@@ -26,7 +26,7 @@ axiosInstance.interceptors.request.use(
 export const authService = {
   login: async (email: string, password: string) => {
     // Note: Backend expects username, but we're sending email as username
-    const response = await axiosInstance.post('/auth/login', {
+    const response = await axiosInstance.post('api/auth/login', {
       username: email,
       password,
     });

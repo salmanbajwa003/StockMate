@@ -1,0 +1,2 @@
+# StockMate
+Inventory management system

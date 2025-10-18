@@ -44,8 +44,8 @@ When you add inventory, you can specify any unit, and it will be converted to ya
 # Add 5 kg of fabric
 POST /api/inventory
 {
-  "warehouseId": "warehouse-uuid",
-  "productId": "product-uuid",
+  "warehouseId": 1,
+  "productId": 1,
   "quantity": 5,
   "unit": "kg"
 }
@@ -129,7 +129,7 @@ POST /api/invoices
 {
   "items": [
     {
-      "productId": "product-uuid",
+      "productId": 1,
       "quantity": 3,  # This is in yards
       "unitPrice": 25.00
     }
@@ -183,7 +183,7 @@ POST /api/inventory
 POST /api/invoices
 {
   "items": [{
-    "productId": "product-uuid",
+    "productId": 1,
     "quantity": 7,
     "unitPrice": 25.00
   }]
@@ -251,7 +251,7 @@ GET /api/inventory
 # Response (all in yards):
 [
   {
-    "id": "inventory-uuid",
+    "id": 1,
     "product": {
       "name": "Cotton Fabric",
       "unit": "yard"
@@ -341,9 +341,9 @@ POST /api/inventory/:id/adjust
 ```sql
 -- Inventory table
 CREATE TABLE inventory (
-  id UUID PRIMARY KEY,
-  warehouse_id UUID REFERENCES warehouses(id),
-  product_id UUID REFERENCES products(id),
+  id INTEGER PRIMARY KEY AUTO_INCREMENT,
+  warehouse_id INTEGER REFERENCES warehouses(id),
+  product_id INTEGER REFERENCES products(id),
   quantity DECIMAL(10, 3) DEFAULT 0,  -- Always in yards
   unit VARCHAR(20) DEFAULT 'yard',     -- Always 'yard'
   minimum_quantity DECIMAL(10, 3) DEFAULT 0,  -- In yards
@@ -390,14 +390,14 @@ curl -X POST http://localhost:3000/api/products \
 
 # 2. Add inventory in kg
 curl -X POST http://localhost:3000/api/inventory \
-  -d '{"productId": "uuid", "warehouseId": "uuid", "quantity": 5, "unit": "kg"}'
+  -d '{"productId": 1, "warehouseId": 1, "quantity": 5, "unit": "kg"}'
 
 # 3. Check inventory (should be 8.2 yards)
 curl http://localhost:3000/api/inventory
 
 # 4. Add more in meters
 curl -X POST http://localhost:3000/api/inventory \
-  -d '{"productId": "uuid", "warehouseId": "uuid", "quantity": 10, "unit": "meter"}'
+  -d '{"productId": 1, "warehouseId": 1, "quantity": 10, "unit": "meter"}'
 
 # 5. Check inventory (should be 19.136 yards)
 curl http://localhost:3000/api/inventory

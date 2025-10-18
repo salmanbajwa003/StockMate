@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsNumber, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsNumber, IsInt } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateProductDto {
@@ -32,15 +32,15 @@ export class CreateProductDto {
   @IsOptional()
   unit?: string;
 
-  @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174000' })
-  @IsUUID()
+  @ApiPropertyOptional({ example: 1 })
+  @IsInt()
   @IsOptional()
-  fabricId?: string;
+  fabricId?: number;
 
-  @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174001' })
-  @IsUUID()
+  @ApiPropertyOptional({ example: 2 })
+  @IsInt()
   @IsOptional()
-  colorId?: string;
+  colorId?: number;
 
   @ApiPropertyOptional({ example: 'M' })
   @IsString()
@@ -52,4 +52,3 @@ export class CreateProductDto {
   @IsOptional()
   isActive?: boolean;
 }
-

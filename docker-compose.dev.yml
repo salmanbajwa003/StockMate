@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wms-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-wms_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-wms_password}
+      POSTGRES_DB: ${DB_DATABASE:-wms_db}
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    networks:
+      - wms-network
+
+volumes:
+  postgres_data_dev:
+    driver: local
+
+networks:
+  wms-network:
+    driver: bridge

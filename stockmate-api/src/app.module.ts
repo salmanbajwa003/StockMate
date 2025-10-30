@@ -11,6 +11,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { FabricsModule } from './fabrics/fabrics.module';
 import { ColorsModule } from './colors/colors.module';
+import { DatabaseModule } from './database/database.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ColorsModule } from './colors/colors.module';
         logging: configService.get('NODE_ENV') === 'development',
       }),
     }),
+    DatabaseModule,
     WarehousesModule,
     ProductsModule,
     FabricsModule,

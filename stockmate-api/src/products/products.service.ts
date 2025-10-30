@@ -1,69 +1,94 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
+import { ProductWarehouse } from './entities/product-warehouse.entity';
+import { Warehouse } from '../warehouses/entities/warehouse.entity';
 import { FabricsService } from '../fabrics/fabrics.service';
 import { ColorsService } from '../colors/colors.service';
-import { convertToStandardUnit, STANDARD_UNIT } from '../common/utils/unit-converter';
+import { convertProductUnit } from '../common/utils/unit-converter';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
+    @InjectRepository(ProductWarehouse)
+    private productWarehouseRepository: Repository<ProductWarehouse>,
+    @InjectRepository(Warehouse)
+    private warehouseRepository: Repository<Warehouse>,
     private fabricsService: FabricsService,
     private colorsService: ColorsService,
   ) {}
 
   async create(createProductDto: CreateProductDto): Promise<Product> {
-    const { fabricId, colorId, weight, unit, ...productData } = createProductDto;
+    const { fabricId, colorId, warehouseQuantities, ...productData } = createProductDto;
 
     const product = this.productRepository.create(productData);
 
-    // Set fabric if fabricId is provided
-    if (fabricId) {
-      product.fabric = await this.fabricsService.findOne(fabricId);
+    // Set fabric (required)
+    product.fabric = await this.fabricsService.findOne(fabricId);
+
+    // Set color (required)
+    product.color = await this.colorsService.findOne(colorId);
+
+    // Save product first to get ID
+    const savedProduct = await this.productRepository.save(product);
+
+    // Validate warehouse quantities (required)
+    if (!warehouseQuantities || warehouseQuantities.length === 0) {
+      throw new BadRequestException('At least one warehouse quantity is required');
     }
 
-    // Set color if colorId is provided
-    if (colorId) {
-      product.color = await this.colorsService.findOne(colorId);
+    const warehouseIds = warehouseQuantities.map((wq) => wq.warehouseId);
+    const warehouses = await this.warehouseRepository.find({
+      where: { id: In(warehouseIds) },
+    });
+
+    if (warehouses.length !== warehouseIds.length) {
+      throw new NotFoundException('One or more warehouses not found');
     }
 
-    // Convert weight to standard unit (yard) if provided
-    if (weight !== undefined && unit) {
-      const conversion = convertToStandardUnit(weight, unit);
-      product.weight = conversion.value;
-      product.unit = conversion.unit;
+    // Create ProductWarehouse entries with conversions
+    const productWarehouses = warehouseQuantities.map((wq) => {
+      const warehouse = warehouses.find((w) => w.id === wq.warehouseId);
+
+      // Apply conversion rules: Meter → Yard, Yard → Yard, Kg → Kg
+      const conversion = convertProductUnit(wq.quantity, wq.unit);
 
       // Log conversion for tracking
       if (conversion.conversionApplied) {
         console.log(
-          `Unit conversion: ${conversion.originalValue} ${conversion.originalUnit} → ${conversion.value} ${conversion.unit}`,
+          `[${warehouse.name}] Unit conversion: ${conversion.originalValue} ${conversion.originalUnit} → ${conversion.value} ${conversion.unit}`,
         );
       }
-    } else {
-      // Set standard unit if no unit provided
-      product.weight = weight;
-      product.unit = STANDARD_UNIT;
-    }
 
-    return await this.productRepository.save(product);
+      return this.productWarehouseRepository.create({
+        product: savedProduct,
+        warehouse,
+        quantity: conversion.value,
+        unit: conversion.unit,
+      });
+    });
+
+    await this.productWarehouseRepository.save(productWarehouses);
+
+    return this.findOne(savedProduct.id);
   }
 
   async findAll(): Promise<Product[]> {
     return await this.productRepository.find({
-      relations: ['fabric', 'color'],
+      relations: ['fabric', 'color', 'productWarehouses', 'productWarehouses.warehouse'],
       order: { createdAt: 'DESC' },
     });
   }
 
-  async findOne(id: string): Promise<Product> {
+  async findOne(id: number): Promise<Product> {
     const product = await this.productRepository.findOne({
       where: { id },
-      relations: ['fabric', 'color'],
+      relations: ['fabric', 'color', 'productWarehouses', 'productWarehouses.warehouse'],
     });
     if (!product) {
       throw new NotFoundException(`Product with ID ${id} not found`);
@@ -71,9 +96,9 @@ export class ProductsService {
     return product;
   }
 
-  async update(id: string, updateProductDto: UpdateProductDto): Promise<Product> {
+  async update(id: number, updateProductDto: UpdateProductDto): Promise<Product> {
     const product = await this.findOne(id);
-    const { fabricId, colorId, weight, unit, ...productData } = updateProductDto;
+    const { fabricId, colorId, warehouseQuantities, ...productData } = updateProductDto;
 
     // Update fabric if fabricId is provided
     if (fabricId !== undefined) {
@@ -85,28 +110,112 @@ export class ProductsService {
       product.color = colorId ? await this.colorsService.findOne(colorId) : null;
     }
 
-    // Convert weight to standard unit (yard) if provided
-    if (weight !== undefined && unit) {
-      const conversion = convertToStandardUnit(weight, unit);
-      product.weight = conversion.value;
-      product.unit = conversion.unit;
+    // Update warehouse quantities if provided
+    if (warehouseQuantities !== undefined) {
+      // Remove existing warehouse associations
+      await this.productWarehouseRepository.delete({ product: { id } });
 
-      // Log conversion for tracking
-      if (conversion.conversionApplied) {
-        console.log(
-          `Unit conversion: ${conversion.originalValue} ${conversion.originalUnit} → ${conversion.value} ${conversion.unit}`,
-        );
+      // Add new warehouse associations
+      if (warehouseQuantities.length > 0) {
+        const warehouseIds = warehouseQuantities.map((wq) => wq.warehouseId);
+        const warehouses = await this.warehouseRepository.find({
+          where: { id: In(warehouseIds) },
+        });
+
+        if (warehouses.length !== warehouseIds.length) {
+          throw new NotFoundException('One or more warehouses not found');
+        }
+
+        // Create ProductWarehouse entries with conversions
+        const productWarehouses = warehouseQuantities.map((wq) => {
+          const warehouse = warehouses.find((w) => w.id === wq.warehouseId);
+
+          // Apply conversion rules: Meter → Yard, Yard → Yard, Kg → Kg
+          const conversion = convertProductUnit(wq.quantity, wq.unit);
+
+          // Log conversion for tracking
+          if (conversion.conversionApplied) {
+            console.log(
+              `[${warehouse.name}] Unit conversion: ${conversion.originalValue} ${conversion.originalUnit} → ${conversion.value} ${conversion.unit}`,
+            );
+          }
+
+          return this.productWarehouseRepository.create({
+            product,
+            warehouse,
+            quantity: conversion.value,
+            unit: conversion.unit,
+          });
+        });
+
+        await this.productWarehouseRepository.save(productWarehouses);
       }
-    } else if (weight !== undefined) {
-      product.weight = weight;
     }
 
     Object.assign(product, productData);
-    return await this.productRepository.save(product);
+    await this.productRepository.save(product);
+    return this.findOne(id);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     const product = await this.findOne(id);
     await this.productRepository.softDelete(id);
+  }
+
+  // Warehouse quantity management methods
+  async getProductWarehouse(
+    productId: number,
+    warehouseId: number,
+  ): Promise<ProductWarehouse | null> {
+    return await this.productWarehouseRepository.findOne({
+      where: {
+        product: { id: productId },
+        warehouse: { id: warehouseId },
+      },
+      relations: ['product', 'warehouse'],
+    });
+  }
+
+  async checkAvailability(
+    productId: number,
+    warehouseId: number,
+    requiredQuantity: number,
+  ): Promise<boolean> {
+    const productWarehouse = await this.getProductWarehouse(productId, warehouseId);
+
+    if (!productWarehouse) {
+      return false;
+    }
+
+    return productWarehouse.quantity >= requiredQuantity;
+  }
+
+  async adjustWarehouseQuantity(
+    productId: number,
+    warehouseId: number,
+    adjustment: number,
+    reason?: string,
+  ): Promise<ProductWarehouse> {
+    let productWarehouse = await this.getProductWarehouse(productId, warehouseId);
+
+    if (!productWarehouse) {
+      throw new NotFoundException(`Product not found in the specified warehouse`);
+    }
+
+    productWarehouse.quantity = Number(productWarehouse.quantity) + adjustment;
+
+    if (productWarehouse.quantity < 0) {
+      throw new BadRequestException(
+        `Adjustment would result in negative quantity. Current: ${Number(productWarehouse.quantity) - adjustment}, Adjustment: ${adjustment}`,
+      );
+    }
+
+    if (reason) {
+      console.log(
+        `[${productWarehouse.warehouse.name}] ${productWarehouse.product.name}: ${adjustment > 0 ? '+' : ''}${adjustment} (${reason})`,
+      );
+    }
+
+    return await this.productWarehouseRepository.save(productWarehouse);
   }
 }

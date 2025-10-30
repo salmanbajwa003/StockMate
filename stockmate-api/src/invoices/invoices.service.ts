@@ -13,7 +13,6 @@ import { InvoiceItem } from './entities/invoice-item.entity';
 import { CustomersService } from '../customers/customers.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { ProductsService } from '../products/products.service';
-import { InventoryService } from '../inventory/inventory.service';
 
 @Injectable()
 export class InvoicesService {
@@ -25,7 +24,6 @@ export class InvoicesService {
     private customersService: CustomersService,
     private warehousesService: WarehousesService,
     private productsService: ProductsService,
-    private inventoryService: InventoryService,
   ) {}
 
   async create(createInvoiceDto: CreateInvoiceDto): Promise<Invoice> {
@@ -46,7 +44,7 @@ export class InvoicesService {
       );
     }
 
-    // Validate items and check inventory availability
+    // Validate items and check warehouse availability
     if (!items || items.length === 0) {
       throw new BadRequestException('Invoice must have at least one item');
     }
@@ -58,17 +56,19 @@ export class InvoicesService {
     for (const itemDto of items) {
       const product = await this.productsService.findOne(itemDto.productId);
 
-      // Check inventory availability
-      const inventoryList = await this.inventoryService.findAll(warehouseId, itemDto.productId);
+      // Check warehouse availability
+      const productWarehouse = await this.productsService.getProductWarehouse(
+        itemDto.productId,
+        warehouseId,
+      );
 
-      if (inventoryList.length === 0) {
+      if (!productWarehouse) {
         throw new BadRequestException(`Product ${product.name} is not available in this warehouse`);
       }
 
-      const inventory = inventoryList[0];
-      if (inventory.quantity < itemDto.quantity) {
+      if (productWarehouse.quantity < itemDto.quantity) {
         throw new BadRequestException(
-          `Insufficient inventory for product ${product.name}. Available: ${inventory.quantity}, Requested: ${itemDto.quantity}`,
+          `Insufficient quantity for product ${product.name}. Available: ${productWarehouse.quantity}, Requested: ${itemDto.quantity}`,
         );
       }
 
@@ -103,41 +103,29 @@ export class InvoicesService {
 
     const savedInvoice = await this.invoicesRepository.save(invoice);
 
-    // If invoice is not draft, deduct from inventory
+    // If invoice is not draft, deduct from warehouse quantities
     if (savedInvoice.status !== InvoiceStatus.DRAFT) {
-      await this.deductInventory(savedInvoice);
+      await this.deductWarehouseQuantities(savedInvoice);
     }
 
     return savedInvoice;
   }
 
-  private async deductInventory(invoice: Invoice): Promise<void> {
-    // Deduct inventory for each item in the invoice
-    // Note: All quantities are in yards (standard unit) as per the unit conversion system
+  private async deductWarehouseQuantities(invoice: Invoice): Promise<void> {
+    // Deduct warehouse quantity for each item in the invoice
     for (const item of invoice.items) {
-      const inventoryList = await this.inventoryService.findAll(
-        invoice.warehouse.id,
+      await this.productsService.adjustWarehouseQuantity(
         item.product.id,
+        invoice.warehouse.id,
+        -item.quantity,
+        `Invoice ${invoice.invoiceNumber}`,
       );
-
-      if (inventoryList.length > 0) {
-        // Deduct the quantity in yards (item.quantity is already in yards from product)
-        await this.inventoryService.adjustQuantity(inventoryList[0].id, {
-          adjustment: -item.quantity,
-          unit: 'yard', // Explicitly specify yard for clarity
-          reason: `Invoice ${invoice.invoiceNumber}`,
-        });
-
-        console.log(
-          `Invoice deduction: ${item.product.name} - Deducted ${item.quantity} yards for invoice ${invoice.invoiceNumber}`,
-        );
-      }
     }
   }
 
   async findAll(
-    customerId?: string,
-    warehouseId?: string,
+    customerId?: number,
+    warehouseId?: number,
     status?: InvoiceStatus,
   ): Promise<Invoice[]> {
     const query = this.invoicesRepository
@@ -162,7 +150,7 @@ export class InvoicesService {
     return await query.orderBy('invoice.createdAt', 'DESC').getMany();
   }
 
-  async findOne(id: string): Promise<Invoice> {
+  async findOne(id: number): Promise<Invoice> {
     const invoice = await this.invoicesRepository.findOne({
       where: { id },
       relations: ['customer', 'warehouse', 'items', 'items.product'],
@@ -175,7 +163,7 @@ export class InvoicesService {
     return invoice;
   }
 
-  async update(id: string, updateInvoiceDto: UpdateInvoiceDto): Promise<Invoice> {
+  async update(id: number, updateInvoiceDto: UpdateInvoiceDto): Promise<Invoice> {
     const invoice = await this.findOne(id);
 
     if (invoice.status === InvoiceStatus.PAID) {
@@ -198,7 +186,7 @@ export class InvoicesService {
     return await this.invoicesRepository.save(invoice);
   }
 
-  async markAsPaid(id: string): Promise<Invoice> {
+  async markAsPaid(id: number): Promise<Invoice> {
     const invoice = await this.findOne(id);
 
     if (invoice.status === InvoiceStatus.PAID) {
@@ -216,16 +204,16 @@ export class InvoicesService {
 
     const savedInvoice = await this.invoicesRepository.save(invoice);
 
-    // If it was pending, inventory was already deducted
+    // If it was pending, warehouse quantities were already deducted
     // If it was draft, deduct now
     if (!wasPending) {
-      await this.deductInventory(savedInvoice);
+      await this.deductWarehouseQuantities(savedInvoice);
     }
 
     return savedInvoice;
   }
 
-  async cancel(id: string): Promise<Invoice> {
+  async cancel(id: number): Promise<Invoice> {
     const invoice = await this.findOne(id);
 
     if (invoice.status === InvoiceStatus.PAID) {
@@ -238,20 +226,15 @@ export class InvoicesService {
       throw new BadRequestException('Invoice is already cancelled');
     }
 
-    // If inventory was deducted (status was pending), restore it
+    // If warehouse quantity was deducted (status was pending), restore it
     if (invoice.status === InvoiceStatus.PENDING) {
       for (const item of invoice.items) {
-        const inventoryList = await this.inventoryService.findAll(
-          invoice.warehouse.id,
+        await this.productsService.adjustWarehouseQuantity(
           item.product.id,
+          invoice.warehouse.id,
+          item.quantity,
+          `Invoice ${invoice.invoiceNumber} cancelled`,
         );
-
-        if (inventoryList.length > 0) {
-          await this.inventoryService.adjustQuantity(inventoryList[0].id, {
-            adjustment: item.quantity,
-            reason: `Invoice ${invoice.invoiceNumber} cancelled`,
-          });
-        }
       }
     }
 
@@ -259,14 +242,14 @@ export class InvoicesService {
     return await this.invoicesRepository.save(invoice);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     const invoice = await this.findOne(id);
 
     if (invoice.status === InvoiceStatus.PAID) {
       throw new BadRequestException('Cannot delete a paid invoice');
     }
 
-    // If pending, restore inventory before deletion
+    // If pending, restore warehouse quantities before deletion
     if (invoice.status === InvoiceStatus.PENDING) {
       await this.cancel(id);
     }

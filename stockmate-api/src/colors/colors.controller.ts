@@ -9,6 +9,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { ColorsService } from './colors.service';
@@ -41,7 +42,7 @@ export class ColorsController {
   @ApiOperation({ summary: 'Get a color by ID' })
   @ApiResponse({ status: 200, description: 'Return the color.' })
   @ApiResponse({ status: 404, description: 'Color not found.' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.colorsService.findOne(id);
   }
 
@@ -50,7 +51,7 @@ export class ColorsController {
   @ApiResponse({ status: 200, description: 'Color successfully updated.' })
   @ApiResponse({ status: 404, description: 'Color not found.' })
   @ApiResponse({ status: 409, description: 'Color name already in use.' })
-  update(@Param('id') id: string, @Body() updateColorDto: UpdateColorDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateColorDto: UpdateColorDto) {
     return this.colorsService.update(id, updateColorDto);
   }
 
@@ -59,7 +60,7 @@ export class ColorsController {
   @ApiOperation({ summary: 'Delete a color (soft delete)' })
   @ApiResponse({ status: 204, description: 'Color successfully deleted.' })
   @ApiResponse({ status: 404, description: 'Color not found.' })
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseIntPipe) id: number) {
     return this.colorsService.remove(id);
   }
 }

@@ -1,14 +1,14 @@
 import {
   IsString,
   IsNotEmpty,
-  IsOptional,
-  IsBoolean,
   IsNumber,
-  IsUUID,
-  IsEnum,
+  IsArray,
+  ValidateNested,
+  ArrayMinSize,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UnitType } from '@/common/utils/unit-converter';
+import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { WarehouseQuantityDto } from './warehouse-quantity.dto';
 
 export class CreateProductDto {
   @ApiProperty({ example: 'Green Khadar Fabric' })
@@ -16,48 +16,36 @@ export class CreateProductDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiPropertyOptional({ example: 'Premium quality fabric' })
-  @IsString()
-  @IsOptional()
-  description?: string;
-
-  @ApiPropertyOptional({ example: 'Fabric' })
-  @IsString()
-  @IsOptional()
-  category?: string;
-
-  @ApiProperty({ example: 99.99 })
+  @ApiProperty({ example: 1 })
   @IsNumber()
   @IsNotEmpty()
-  price: number;
+  fabricId: number;
 
-  @ApiPropertyOptional({ example: 1.5 })
+  @ApiProperty({ example: 1 })
   @IsNumber()
-  @IsOptional()
-  weight?: number;
+  @IsNotEmpty()
+  colorId: number;
 
-  @ApiPropertyOptional({ example: 'yard' })
-  @IsEnum(UnitType)
-  @IsOptional()
-  unit?: UnitType;
-
-  @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174000' })
-  @IsUUID()
-  @IsOptional()
-  fabricId?: string;
-
-  @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174001' })
-  @IsUUID()
-  @IsOptional()
-  colorId?: string;
-
-  @ApiPropertyOptional({ example: 'M' })
-  @IsString()
-  @IsOptional()
-  size?: string;
-
-  @ApiPropertyOptional({ example: true })
-  @IsBoolean()
-  @IsOptional()
-  isActive?: boolean;
+  @ApiProperty({
+    type: [WarehouseQuantityDto],
+    description: 'Array of warehouses with their quantities and units (at least one required)',
+    example: [
+      {
+        warehouseId: 1,
+        quantity: 100,
+        unit: 'meter',
+      },
+      {
+        warehouseId: 2,
+        quantity: 50,
+        unit: 'yard',
+      },
+    ],
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => WarehouseQuantityDto)
+  @IsNotEmpty()
+  warehouseQuantities: WarehouseQuantityDto[];
 }

@@ -9,6 +9,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { FabricsService } from './fabrics.service';
@@ -41,7 +42,7 @@ export class FabricsController {
   @ApiOperation({ summary: 'Get a fabric by ID' })
   @ApiResponse({ status: 200, description: 'Return the fabric.' })
   @ApiResponse({ status: 404, description: 'Fabric not found.' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.fabricsService.findOne(id);
   }
 
@@ -50,7 +51,7 @@ export class FabricsController {
   @ApiResponse({ status: 200, description: 'Fabric successfully updated.' })
   @ApiResponse({ status: 404, description: 'Fabric not found.' })
   @ApiResponse({ status: 409, description: 'Fabric name already in use.' })
-  update(@Param('id') id: string, @Body() updateFabricDto: UpdateFabricDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateFabricDto: UpdateFabricDto) {
     return this.fabricsService.update(id, updateFabricDto);
   }
 
@@ -59,7 +60,7 @@ export class FabricsController {
   @ApiOperation({ summary: 'Delete a fabric (soft delete)' })
   @ApiResponse({ status: 204, description: 'Fabric successfully deleted.' })
   @ApiResponse({ status: 404, description: 'Fabric not found.' })
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseIntPipe) id: number) {
     return this.fabricsService.remove(id);
   }
 }

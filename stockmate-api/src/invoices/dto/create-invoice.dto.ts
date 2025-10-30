@@ -20,15 +20,15 @@ export class CreateInvoiceDto {
   @IsNotEmpty()
   invoiceNumber: string;
 
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
-  @IsString()
+  @ApiProperty({ example: 1 })
+  @IsNumber()
   @IsNotEmpty()
-  customerId: string;
+  customerId: number;
 
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174001' })
-  @IsString()
+  @ApiProperty({ example: 1 })
+  @IsNumber()
   @IsNotEmpty()
-  warehouseId: string;
+  warehouseId: number;
 
   @ApiPropertyOptional({ example: '2025-10-18T10:00:00Z' })
   @IsDateString()

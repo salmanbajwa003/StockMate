@@ -35,7 +35,7 @@ export class CustomersService {
       .getMany();
   }
 
-  async findOne(id: string): Promise<Customer> {
+  async findOne(id: number): Promise<Customer> {
     const customer = await this.customersRepository.findOne({
       where: { id },
     });
@@ -59,7 +59,7 @@ export class CustomersService {
     return customer;
   }
 
-  async update(id: string, updateCustomerDto: UpdateCustomerDto): Promise<Customer> {
+  async update(id: number, updateCustomerDto: UpdateCustomerDto): Promise<Customer> {
     const customer = await this.findOne(id);
 
     // Check if updating email and if it conflicts with another customer
@@ -79,7 +79,7 @@ export class CustomersService {
     return await this.customersRepository.save(customer);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     const customer = await this.findOne(id);
     await this.customersRepository.softDelete(id);
   }

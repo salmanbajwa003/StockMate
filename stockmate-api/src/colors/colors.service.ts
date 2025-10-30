@@ -36,7 +36,7 @@ export class ColorsService {
     return await query.orderBy('color.name', 'ASC').getMany();
   }
 
-  async findOne(id: string): Promise<Color> {
+  async findOne(id: number): Promise<Color> {
     const color = await this.colorsRepository.findOne({
       where: { id },
     });
@@ -48,7 +48,7 @@ export class ColorsService {
     return color;
   }
 
-  async update(id: string, updateColorDto: UpdateColorDto): Promise<Color> {
+  async update(id: number, updateColorDto: UpdateColorDto): Promise<Color> {
     const color = await this.findOne(id);
 
     // Check if updating name and if it conflicts with another color
@@ -66,7 +66,7 @@ export class ColorsService {
     return await this.colorsRepository.save(color);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     const color = await this.findOne(id);
     await this.colorsRepository.softDelete(id);
   }

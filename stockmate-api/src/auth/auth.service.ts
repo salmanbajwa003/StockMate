@@ -77,11 +77,10 @@ export class AuthService {
     }
   }
 
-  async getProfile(userId: string) {
+  async getProfile(userId: number) {
     const user = await this.usersService.findOne(userId);
     // Return user without password
     const { password, ...result } = user;
     return result;
   }
 }
-

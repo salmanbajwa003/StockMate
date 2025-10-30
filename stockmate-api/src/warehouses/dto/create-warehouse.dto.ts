@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateWarehouseDto {
@@ -7,39 +7,13 @@ export class CreateWarehouseDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: '123 Main Street' })
+  @ApiProperty({ example: '123 Main Street, New York, NY 10001' })
   @IsString()
   @IsNotEmpty()
   address: string;
 
-  @ApiPropertyOptional({ example: 'New York' })
+  @ApiPropertyOptional({ example: 'Large' })
   @IsString()
   @IsOptional()
-  city?: string;
-
-  @ApiPropertyOptional({ example: 'NY' })
-  @IsString()
-  @IsOptional()
-  state?: string;
-
-  @ApiPropertyOptional({ example: '10001' })
-  @IsString()
-  @IsOptional()
-  zipCode?: string;
-
-  @ApiPropertyOptional({ example: 'USA' })
-  @IsString()
-  @IsOptional()
-  country?: string;
-
-  @ApiPropertyOptional({ example: 10000 })
-  @IsNumber()
-  @IsOptional()
-  capacity?: number;
-
-  @ApiPropertyOptional({ example: true })
-  @IsBoolean()
-  @IsOptional()
-  isActive?: boolean;
+  size?: string;
 }
-

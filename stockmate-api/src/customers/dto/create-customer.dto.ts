@@ -12,14 +12,22 @@ export class CreateCustomerDto {
   @IsNotEmpty()
   email: string;
 
-  @ApiPropertyOptional({ example: '+1234567890' })
+  @ApiPropertyOptional({ example: '03334567890' })
+  @IsString()
+  phone: string;
+
+  @ApiPropertyOptional({ example: '03334567890' })
   @IsString()
   @IsOptional()
-  phone?: string;
+  phone_number2?: string;
+
+  @ApiPropertyOptional({ example: '03334567890' })
+  @IsString()
+  @IsOptional()
+  phone_number3?: string;
 
   @ApiPropertyOptional({ example: '123 Main Street, New York, NY 10001' })
   @IsString()
   @IsOptional()
   address?: string;
 }
-

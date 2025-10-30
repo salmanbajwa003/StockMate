@@ -12,7 +12,12 @@ export class Customer extends BaseEntity {
   @Column({ length: 20, nullable: true })
   phone: string;
 
+  @Column({ length: 20, nullable: true })
+  phone_number2: string;
+
+  @Column({ length: 20, nullable: true })
+  phone_number3: string;
+
   @Column({ type: 'text', nullable: true })
   address: string;
 }
-

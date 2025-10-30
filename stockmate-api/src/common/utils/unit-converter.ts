@@ -190,3 +190,57 @@ export function getConversionFactor(fromUnit: string): number {
   const normalizedUnit = fromUnit.toLowerCase().trim();
   return LENGTH_TO_YARD[normalizedUnit] || WEIGHT_TO_YARD[normalizedUnit] || 1;
 }
+
+/**
+ * Converts units based on specific business rules:
+ * - Meter → Yard (convert quantity)
+ * - Yard → Yard (no conversion)
+ * - Kg → Kg (no conversion)
+ */
+export function convertProductUnit(quantity: number, fromUnit: string): ConversionResult {
+  const normalizedUnit = fromUnit.toLowerCase().trim() as UnitType;
+
+  // Rule 1: If unit is Meter, convert to Yard
+  if (normalizedUnit === UnitType.METER) {
+    const convertedValue = quantity * LENGTH_TO_YARD[UnitType.METER];
+    return {
+      value: Math.round(convertedValue * 1000) / 1000, // Round to 3 decimals
+      unit: UnitType.YARD,
+      originalValue: quantity,
+      originalUnit: fromUnit,
+      conversionApplied: true,
+    };
+  }
+
+  // Rule 2: If unit is Yard, keep as Yard
+  if (normalizedUnit === UnitType.YARD) {
+    return {
+      value: quantity,
+      unit: UnitType.YARD,
+      originalValue: quantity,
+      originalUnit: fromUnit,
+      conversionApplied: false,
+    };
+  }
+
+  // Rule 3: If unit is Kg (KILOGRAM), keep as Kg
+  if (normalizedUnit === UnitType.KILOGRAM) {
+    return {
+      value: quantity,
+      unit: UnitType.KILOGRAM,
+      originalValue: quantity,
+      originalUnit: fromUnit,
+      conversionApplied: false,
+    };
+  }
+
+  // For any other unit, return as-is with warning
+  console.warn(`Unit '${fromUnit}' does not match conversion rules. Storing as-is.`);
+  return {
+    value: quantity,
+    unit: normalizedUnit,
+    originalValue: quantity,
+    originalUnit: fromUnit,
+    conversionApplied: false,
+  };
+}

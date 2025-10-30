@@ -36,7 +36,7 @@ export class FabricsService {
     return await query.orderBy('fabric.name', 'ASC').getMany();
   }
 
-  async findOne(id: string): Promise<Fabric> {
+  async findOne(id: number): Promise<Fabric> {
     const fabric = await this.fabricsRepository.findOne({
       where: { id },
     });
@@ -48,7 +48,7 @@ export class FabricsService {
     return fabric;
   }
 
-  async update(id: string, updateFabricDto: UpdateFabricDto): Promise<Fabric> {
+  async update(id: number, updateFabricDto: UpdateFabricDto): Promise<Fabric> {
     const fabric = await this.findOne(id);
 
     // Check if updating name and if it conflicts with another fabric
@@ -66,7 +66,7 @@ export class FabricsService {
     return await this.fabricsRepository.save(fabric);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     const fabric = await this.findOne(id);
     await this.fabricsRepository.softDelete(id);
   }

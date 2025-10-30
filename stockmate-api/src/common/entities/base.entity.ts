@@ -6,8 +6,8 @@ import {
 } from 'typeorm';
 
 export abstract class BaseEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
@@ -18,4 +18,3 @@ export abstract class BaseEntity {
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt?: Date;
 }
-

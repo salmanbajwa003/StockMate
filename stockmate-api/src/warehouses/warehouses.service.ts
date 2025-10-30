@@ -23,7 +23,7 @@ export class WarehousesService {
     });
   }
 
-  async findOne(id: string): Promise<Warehouse> {
+  async findOne(id: number): Promise<Warehouse> {
     const warehouse = await this.warehouseRepository.findOne({ where: { id } });
     if (!warehouse) {
       throw new NotFoundException(`Warehouse with ID ${id} not found`);
@@ -31,13 +31,13 @@ export class WarehousesService {
     return warehouse;
   }
 
-  async update(id: string, updateWarehouseDto: UpdateWarehouseDto): Promise<Warehouse> {
+  async update(id: number, updateWarehouseDto: UpdateWarehouseDto): Promise<Warehouse> {
     const warehouse = await this.findOne(id);
     Object.assign(warehouse, updateWarehouseDto);
     return await this.warehouseRepository.save(warehouse);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     const warehouse = await this.findOne(id);
     await this.warehouseRepository.softDelete(id);
   }

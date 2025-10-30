@@ -5,7 +5,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { ProductsModule } from './products/products.module';
-import { InventoryModule } from './inventory/inventory.module';
 import { CustomersModule } from './customers/customers.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { UsersModule } from './users/users.module';
@@ -37,7 +36,6 @@ import { ColorsModule } from './colors/colors.module';
     ProductsModule,
     FabricsModule,
     ColorsModule,
-    InventoryModule,
     CustomersModule,
     InvoicesModule,
     UsersModule,
@@ -47,4 +45,3 @@ import { ColorsModule } from './colors/colors.module';
   providers: [AppService],
 })
 export class AppModule {}
-

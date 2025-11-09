@@ -44,8 +44,9 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
+    console.log('loginDto', loginDto);
     // Find user by username
-    const user = await this.usersService.findByUsername(loginDto.username);
+    const user = await this.usersService.findByEmail(loginDto.username);
 
     // Check if user exists and password matches (plain text comparison as requested)
     if (!user || user.password !== loginDto.password) {

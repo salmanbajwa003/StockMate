@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AppBar, Toolbar, Typography, Box, Button } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import logo from '../../assets/warehouse.png';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 
 const Navbar = () => {
   const location = useLocation();
@@ -11,9 +11,11 @@ const Navbar = () => {
 
   const navLinks = [
     { to: '/products', label: 'Products' },
-    { to: '/inventory', label: 'Inventory' },
     { to: '/customers', label: 'Customers' },
     { to: '/warehouse', label: 'Warehouse' },
+    { to: '/invoices', label: 'Invoices' },
+    { to: '/colors', label: 'Colors' },
+    { to: '/fibers', label: 'Fibers' },
   ];
 
   const handleLogout = () => {
@@ -91,9 +93,9 @@ const Navbar = () => {
           })}
           {user && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 2 }}>
-              <Typography variant="body2" sx={{ color: 'white' }}>
+              {/* <Typography variant="body2" sx={{ color: 'white' }}>
                 {user.name}
-              </Typography>
+              </Typography> */}
               <Button
                 onClick={handleLogout}
                 startIcon={<LogoutIcon />}

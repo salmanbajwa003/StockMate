@@ -17,6 +17,15 @@ export class Product extends BaseEntity {
   @JoinColumn({ name: 'color_id' })
   color: Color;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  price: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  weight: number;
+
+  @Column({ length: 50, nullable: true })
+  unit: string;
+
   @OneToMany(() => ProductWarehouse, (productWarehouse) => productWarehouse.product, {
     cascade: true,
   })

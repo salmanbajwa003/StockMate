@@ -4,18 +4,15 @@ import axios from 'axios';
 import CustomForm from '../components/CustomForm';
 import CustomTable from '../components/CustomTable';
 import CustomSearchFilter from '../components/CustomSearchFilter';
-import type { SearchOption, Warehouse, Column } from '../utils/types';
+import type { SearchOption, Fiber, Column } from '../utils/types';
 import { API_ENDPOINTS } from '../utils/constants';
 
-const API_URL = API_ENDPOINTS.WAREHOUSES;
+const API_URL = API_ENDPOINTS.FABRICS;
 
-// Alias for consistency
-type WarehouseType = Warehouse;
-
-const WarehousePage = () => {
-  const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
-  const [filteredWarehouses, setFilteredWarehouses] = useState<WarehouseType[]>([]);
-  const [selectedWarehouse, setSelectedWarehouse] = useState<WarehouseType | null>(null);
+const Fibers = () => {
+  const [fibers, setFibers] = useState<Fiber[]>([]);
+  const [filteredFibers, setFilteredFibers] = useState<Fiber[]>([]);
+  const [selectedFiber, setSelectedFiber] = useState<Fiber | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchKey, setSearchKey] = useState<string>('name');
   const [searchValue, setSearchValue] = useState<string>('');
@@ -23,70 +20,65 @@ const WarehousePage = () => {
   // Search options based on backend fields
   const searchOptions: SearchOption[] = [
     { label: 'By Name', value: 'name' },
-    { label: 'By Size', value: 'size' },
-    { label: 'By Address', value: 'address' },
     { label: 'By ID', value: 'id' },
   ];
 
-  // ✅ Fetch all warehouses
-  const fetchWarehouses = async () => {
+  // Fetch all fibers
+  const fetchFibers = async () => {
     try {
       setLoading(true);
-      const res = await axios.get<WarehouseType[]>(API_URL);
-      setWarehouses(res.data);
-      setFilteredWarehouses(res.data);
+      const res = await axios.get<Fiber[]>(API_URL);
+      setFibers(res.data);
+      setFilteredFibers(res.data);
     } catch (err) {
-      console.error('Error fetching warehouses:', err);
+      console.error('Error fetching fibers:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchWarehouses();
+    fetchFibers();
   }, []);
 
-  // Filter warehouses based on search
+  // Filter fibers based on search
   useEffect(() => {
     if (!searchValue.trim()) {
-      setFilteredWarehouses(warehouses);
+      setFilteredFibers(fibers);
       return;
     }
 
-    const filtered = warehouses.filter((warehouse) => {
-      const fieldValue = String(warehouse[searchKey as keyof WarehouseType] || '').toLowerCase();
+    const filtered = fibers.filter((fiber) => {
+      const fieldValue = String(fiber[searchKey as keyof Fiber] || '').toLowerCase();
       return fieldValue.includes(searchValue.toLowerCase());
     });
 
-    setFilteredWarehouses(filtered);
-  }, [searchValue, searchKey, warehouses]);
+    setFilteredFibers(filtered);
+  }, [searchValue, searchKey, fibers]);
 
-  // ✅ Add or Update
-  const handleAddOrUpdate = async (data: Record<string, string | number | boolean>) => {
+  // Add or Update Fiber
+  const handleAddOrUpdate = async (data: Record<string, string | number>) => {
     try {
-      //  Prepare payload with correct data types
       const payload: Record<string, string> = {
         name: String(data.name),
-        address: String(data.address),
       };
 
-      if (data.size) payload.size = String(data.size);
+      if (data.description) payload.description = String(data.description);
 
-      if (selectedWarehouse) {
-        console.log('Updating warehouse:', selectedWarehouse.id, payload);
-        const response = await axios.patch(`${API_URL}/${selectedWarehouse.id}`, payload);
+      if (selectedFiber) {
+        console.log('Updating fiber:', selectedFiber.id, payload);
+        const response = await axios.patch(`${API_URL}/${selectedFiber.id}`, payload);
         console.log('Update response:', response.data);
       } else {
-        console.log('Creating warehouse:', payload);
+        console.log('Creating fiber:', payload);
         const response = await axios.post(API_URL, payload);
         console.log('Create response:', response.data);
       }
-
-      await fetchWarehouses();
-      setSelectedWarehouse(null);
+      await fetchFibers();
+      setSelectedFiber(null);
     } catch (err: unknown) {
-      console.error('Error saving warehouse:', err);
-      let errorMessage = 'Failed to save warehouse';
+      console.error('Error saving fiber:', err);
+      let errorMessage = 'Failed to save fiber';
       if (err && typeof err === 'object') {
         if ('response' in err && err.response && typeof err.response === 'object' && 'data' in err.response) {
           const responseData = err.response.data;
@@ -101,21 +93,20 @@ const WarehousePage = () => {
     }
   };
 
-  // ✅ Row click → edit mode
-  const handleRowClick = (warehouse: WarehouseType) => {
-    setSelectedWarehouse(warehouse);
+  // Handle row click — populate form
+  const handleRowClick = (fiber: Fiber) => {
+    setSelectedFiber(fiber);
   };
 
-  // ✅ Cancel edit
+  // Cancel edit
   const handleCancel = () => {
-    setSelectedWarehouse(null);
+    setSelectedFiber(null);
   };
 
-  const columns: Column<WarehouseType>[] = [
+  const columns: Column<Fiber>[] = [
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Name' },
-    { key: 'address', label: 'Address' },
-    { key: 'size', label: 'Size' },
+    { key: 'description', label: 'Description' },
   ];
 
   return (
@@ -128,26 +119,24 @@ const WarehousePage = () => {
           color: '#1976d2',
         }}
       >
-        Manage Warehouses
+        Manage Fibers
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 3, width: '100%', flexDirection: { xs: 'column', md: 'row' } }}>
         {/* Left Side - Form (30%) */}
         <Box sx={{ width: { xs: '100%', md: '30%' }, flexShrink: 0 }}>
           <CustomForm
-            title="Warehouse Details"
+            title="Fiber Details"
             fields={[
               { key: 'name', label: 'Name', required: true },
-              { key: 'address', label: 'Address', required: true },
-              { key: 'size', label: 'Size', required: false },
+              { key: 'description', label: 'Description', required: false },
             ]}
             onSubmit={handleAddOrUpdate}
             initialData={
-              selectedWarehouse
+              selectedFiber
                 ? {
-                    name: selectedWarehouse.name,
-                    address: selectedWarehouse.address,
-                    size: selectedWarehouse.size || '',
+                    name: selectedFiber.name,
+                    description: selectedFiber.description || '',
                   }
                 : null
             }
@@ -167,9 +156,9 @@ const WarehousePage = () => {
           />
 
           {/* Table */}
-          <CustomTable<WarehouseType>
+          <CustomTable<Fiber>
             columns={columns}
-            rows={filteredWarehouses}
+            rows={filteredFibers}
             onRowClick={handleRowClick}
             loading={loading}
           />
@@ -179,4 +168,5 @@ const WarehousePage = () => {
   );
 };
 
-export default WarehousePage;
+export default Fibers;
+

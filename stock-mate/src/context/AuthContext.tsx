@@ -1,22 +1,8 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { authService } from '../services/authService';
-
-interface User {
-  id: string;
-  name: string;
-  username: string;
-  email: string;
-}
-
-interface AuthContextType {
-  user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import type { User } from '../utils/types';
+import { AuthContext } from './AuthContextInstance';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -30,7 +16,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           const userData = await authService.getProfile();
           setUser(userData);
-        } catch (error) {
+        } catch {
           localStorage.removeItem('token');
         }
       }
@@ -65,12 +51,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

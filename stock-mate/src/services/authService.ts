@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../utils/constants';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = API_BASE_URL;
 
 const axiosInstance = axios.create({
   baseURL: API_URL,
@@ -33,18 +34,18 @@ export const authService = {
     return response.data;
   },
 
-  register: async (name: string, username: string, email: string, password: string) => {
-    const response = await axiosInstance.post('/auth/register', {
-      name,
-      username,
-      email,
-      password,
-    });
-    return response.data;
-  },
+  // register: async (name: string, username: string, email: string, password: string) => {
+  //   const response = await axiosInstance.post('/auth/register', {
+  //     name,
+  //     username,
+  //     email,
+  //     password,
+  //   });
+  //   return response.data;
+  // },
 
   getProfile: async () => {
-    const response = await axiosInstance.get('/auth/profile');
+    const response = await axiosInstance.get('api/auth/profile');
     return response.data;
   },
 };

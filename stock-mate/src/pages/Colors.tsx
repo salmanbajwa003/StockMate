@@ -4,18 +4,15 @@ import axios from 'axios';
 import CustomForm from '../components/CustomForm';
 import CustomTable from '../components/CustomTable';
 import CustomSearchFilter from '../components/CustomSearchFilter';
-import type { SearchOption, Warehouse, Column } from '../utils/types';
+import type { SearchOption, Color, Column } from '../utils/types';
 import { API_ENDPOINTS } from '../utils/constants';
 
-const API_URL = API_ENDPOINTS.WAREHOUSES;
+const API_URL = API_ENDPOINTS.COLORS;
 
-// Alias for consistency
-type WarehouseType = Warehouse;
-
-const WarehousePage = () => {
-  const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
-  const [filteredWarehouses, setFilteredWarehouses] = useState<WarehouseType[]>([]);
-  const [selectedWarehouse, setSelectedWarehouse] = useState<WarehouseType | null>(null);
+const Colors = () => {
+  const [colors, setColors] = useState<Color[]>([]);
+  const [filteredColors, setFilteredColors] = useState<Color[]>([]);
+  const [selectedColor, setSelectedColor] = useState<Color | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchKey, setSearchKey] = useState<string>('name');
   const [searchValue, setSearchValue] = useState<string>('');
@@ -23,70 +20,67 @@ const WarehousePage = () => {
   // Search options based on backend fields
   const searchOptions: SearchOption[] = [
     { label: 'By Name', value: 'name' },
-    { label: 'By Size', value: 'size' },
-    { label: 'By Address', value: 'address' },
     { label: 'By ID', value: 'id' },
+    { label: 'By Hex Code', value: 'hexCode' },
   ];
 
-  // ✅ Fetch all warehouses
-  const fetchWarehouses = async () => {
+  // Fetch all colors
+  const fetchColors = async () => {
     try {
       setLoading(true);
-      const res = await axios.get<WarehouseType[]>(API_URL);
-      setWarehouses(res.data);
-      setFilteredWarehouses(res.data);
+      const res = await axios.get<Color[]>(API_URL);
+      setColors(res.data);
+      setFilteredColors(res.data);
     } catch (err) {
-      console.error('Error fetching warehouses:', err);
+      console.error('Error fetching colors:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchWarehouses();
+    fetchColors();
   }, []);
 
-  // Filter warehouses based on search
+  // Filter colors based on search
   useEffect(() => {
     if (!searchValue.trim()) {
-      setFilteredWarehouses(warehouses);
+      setFilteredColors(colors);
       return;
     }
 
-    const filtered = warehouses.filter((warehouse) => {
-      const fieldValue = String(warehouse[searchKey as keyof WarehouseType] || '').toLowerCase();
+    const filtered = colors.filter((color) => {
+      const fieldValue = String(color[searchKey as keyof Color] || '').toLowerCase();
       return fieldValue.includes(searchValue.toLowerCase());
     });
 
-    setFilteredWarehouses(filtered);
-  }, [searchValue, searchKey, warehouses]);
+    setFilteredColors(filtered);
+  }, [searchValue, searchKey, colors]);
 
-  // ✅ Add or Update
-  const handleAddOrUpdate = async (data: Record<string, string | number | boolean>) => {
+  // Add or Update Color
+  const handleAddOrUpdate = async (data: Record<string, string | number>) => {
     try {
-      //  Prepare payload with correct data types
       const payload: Record<string, string> = {
         name: String(data.name),
-        address: String(data.address),
       };
 
-      if (data.size) payload.size = String(data.size);
+      if (data.hexCode) payload.hexCode = String(data.hexCode);
+      if (data.description) payload.description = String(data.description);
 
-      if (selectedWarehouse) {
-        console.log('Updating warehouse:', selectedWarehouse.id, payload);
-        const response = await axios.patch(`${API_URL}/${selectedWarehouse.id}`, payload);
+      if (selectedColor) {
+        console.log('Updating color:', selectedColor.id, payload);
+        const response = await axios.patch(`${API_URL}/${selectedColor.id}`, payload);
         console.log('Update response:', response.data);
       } else {
-        console.log('Creating warehouse:', payload);
+        console.log('Creating color:', payload);
         const response = await axios.post(API_URL, payload);
         console.log('Create response:', response.data);
       }
-
-      await fetchWarehouses();
-      setSelectedWarehouse(null);
+      await fetchColors();
+      setSelectedColor(null);
     } catch (err: unknown) {
-      console.error('Error saving warehouse:', err);
-      let errorMessage = 'Failed to save warehouse';
+      console.error('Error saving color:', err);
+      let errorMessage = 'Failed to save color';
       if (err && typeof err === 'object') {
         if ('response' in err && err.response && typeof err.response === 'object' && 'data' in err.response) {
           const responseData = err.response.data;
@@ -101,21 +95,21 @@ const WarehousePage = () => {
     }
   };
 
-  // ✅ Row click → edit mode
-  const handleRowClick = (warehouse: WarehouseType) => {
-    setSelectedWarehouse(warehouse);
+  // Handle row click — populate form
+  const handleRowClick = (color: Color) => {
+    setSelectedColor(color);
   };
 
-  // ✅ Cancel edit
+  // Cancel edit
   const handleCancel = () => {
-    setSelectedWarehouse(null);
+    setSelectedColor(null);
   };
 
-  const columns: Column<WarehouseType>[] = [
+  const columns: Column<Color>[] = [
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Name' },
-    { key: 'address', label: 'Address' },
-    { key: 'size', label: 'Size' },
+    { key: 'hexCode', label: 'Hex Code' },
+    { key: 'description', label: 'Description' },
   ];
 
   return (
@@ -128,26 +122,26 @@ const WarehousePage = () => {
           color: '#1976d2',
         }}
       >
-        Manage Warehouses
+        Manage Colors
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 3, width: '100%', flexDirection: { xs: 'column', md: 'row' } }}>
         {/* Left Side - Form (30%) */}
         <Box sx={{ width: { xs: '100%', md: '30%' }, flexShrink: 0 }}>
           <CustomForm
-            title="Warehouse Details"
+            title="Color Details"
             fields={[
               { key: 'name', label: 'Name', required: true },
-              { key: 'address', label: 'Address', required: true },
-              { key: 'size', label: 'Size', required: false },
+              { key: 'hexCode', label: 'Hex Code (e.g., #00FF00)', required: false },
+              { key: 'description', label: 'Description', required: false },
             ]}
             onSubmit={handleAddOrUpdate}
             initialData={
-              selectedWarehouse
+              selectedColor
                 ? {
-                    name: selectedWarehouse.name,
-                    address: selectedWarehouse.address,
-                    size: selectedWarehouse.size || '',
+                    name: selectedColor.name,
+                    hexCode: selectedColor.hexCode || '',
+                    description: selectedColor.description || '',
                   }
                 : null
             }
@@ -167,9 +161,9 @@ const WarehousePage = () => {
           />
 
           {/* Table */}
-          <CustomTable<WarehouseType>
+          <CustomTable<Color>
             columns={columns}
-            rows={filteredWarehouses}
+            rows={filteredColors}
             onRowClick={handleRowClick}
             loading={loading}
           />
@@ -179,4 +173,5 @@ const WarehousePage = () => {
   );
 };
 
-export default WarehousePage;
+export default Colors;
+

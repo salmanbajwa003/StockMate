@@ -10,7 +10,7 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -28,6 +28,7 @@ const Login = () => {
     try {
       await login(email, password);
       navigate('/products');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
     } finally {

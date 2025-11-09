@@ -5,8 +5,9 @@ import {
   IsArray,
   ValidateNested,
   ArrayMinSize,
+  IsOptional,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { WarehouseQuantityDto } from './warehouse-quantity.dto';
 
@@ -25,6 +26,21 @@ export class CreateProductDto {
   @IsNumber()
   @IsNotEmpty()
   colorId: number;
+
+  @ApiPropertyOptional({ example: 99.99 })
+  @IsNumber()
+  @IsOptional()
+  price?: number;
+
+  @ApiPropertyOptional({ example: 1.5 })
+  @IsNumber()
+  @IsOptional()
+  weight?: number;
+
+  @ApiPropertyOptional({ example: 'yard' })
+  @IsString()
+  @IsOptional()
+  unit?: string;
 
   @ApiProperty({
     type: [WarehouseQuantityDto],

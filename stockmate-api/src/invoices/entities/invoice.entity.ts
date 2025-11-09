@@ -61,4 +61,3 @@ export class Invoice extends BaseEntity {
   @Column({ type: 'timestamp', nullable: true })
   paidAt: Date;
 }
-

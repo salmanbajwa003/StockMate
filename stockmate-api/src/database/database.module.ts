@@ -9,4 +9,3 @@ import { User } from '../users/entities/user.entity';
   exports: [DatabaseSeedService],
 })
 export class DatabaseModule {}
-

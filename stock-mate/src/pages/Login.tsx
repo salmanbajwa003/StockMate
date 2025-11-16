@@ -72,8 +72,8 @@ const Login = () => {
           <form onSubmit={handleSubmit}>
             <TextField
               fullWidth
-              label="Email"
-              type="email"
+              label="Username/Email"
+              type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               margin="normal"

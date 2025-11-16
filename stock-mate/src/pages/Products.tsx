@@ -4,7 +4,15 @@ import axios from 'axios';
 import CustomForm from '../components/CustomForm';
 import CustomTable from '../components/CustomTable';
 import CustomSearchFilter from '../components/CustomSearchFilter';
-import type { SearchOption, Product, Fiber, Color, FormField, Column } from '../utils/types';
+import type {
+  SearchOption,
+  Product,
+  Fiber,
+  Color,
+  FormField,
+  Column,
+  Warehouse,
+} from '../utils/types';
 import { API_ENDPOINTS } from '../utils/constants';
 
 const API_BASE = API_ENDPOINTS.PRODUCTS;
@@ -18,6 +26,7 @@ const Products = () => {
   const [searchValue, setSearchValue] = useState<string>('');
   const [fabrics, setFabrics] = useState<Fiber[]>([]);
   const [colors, setColors] = useState<Color[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
   // Search options based on backend fields
   const searchOptions: SearchOption[] = [
@@ -58,10 +67,20 @@ const Products = () => {
     }
   };
 
+  const fetchWarehouses = async () => {
+    try {
+      const res = await axios.get<Warehouse[]>(API_ENDPOINTS.WAREHOUSES);
+      setWarehouses(res.data);
+    } catch (err) {
+      console.error('Error fetching warehouses:', err);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchFabrics();
     fetchColors();
+    fetchWarehouses();
   }, []);
 
   // Filter products based on search
@@ -81,24 +100,45 @@ const Products = () => {
 
   // ✅ Add or Update Product
   const handleAddOrUpdate = async (data: Record<string, string | number>) => {
+    console.log('🚀 ~ handleAddOrUpdate ~ data:', data);
+
     try {
       // Build payload with required and optional fields
-      const payload: Record<string, string | number | null> = {
+      const payload: {
+        name: string;
+        fabricId: number | null;
+        colorId: number | null;
+        price?: number | null;
+        weight?: number | null;
+        unit?: string | null;
+        warehouseQuantities: {
+          warehouseId: number | null;
+          quantity: number;
+          unit: string;
+        }[];
+      } = {
         name: String(data.name),
         fabricId: data.fabricId ? Number(data.fabricId) : null,
         colorId: data.colorId ? Number(data.colorId) : null,
+        warehouseQuantities: [
+          {
+            warehouseId: data.warehouseId ? Number(data.warehouseId) : null,
+            quantity: Number(data.weight),
+            unit: String(data.unit),
+          },
+        ],
       };
 
       // Add optional fields if they have values
-      if (data.price !== undefined && data.price !== null && data.price !== '') {
-        payload.price = Number(data.price);
-      }
-      if (data.weight !== undefined && data.weight !== null && data.weight !== '') {
-        payload.weight = Number(data.weight);
-      }
-      if (data.unit !== undefined && data.unit !== null && data.unit !== '') {
-        payload.unit = String(data.unit);
-      }
+      // if (data.price !== undefined && data.price !== null && data.price !== '') {
+      //   payload.price = Number(data.price);
+      // }
+      // if (data.weight !== undefined && data.weight !== null && data.weight !== '') {
+      //   payload.weight = Number(data.weight);
+      // }
+      // if (data.unit !== undefined && data.unit !== null && data.unit !== '') {
+      //   payload.unit = String(data.unit);
+      // }
 
       if (selectedItem) {
         // For update, all fields are optional (UpdateProductDto extends PartialType)
@@ -108,12 +148,8 @@ const Products = () => {
       } else {
         // For create, warehouseQuantities is required - this should be handled separately
         // For now, we'll show an error if trying to create without warehouseQuantities
-        console.error(
-          'Creating products requires warehouseQuantities. Please use the API directly or add warehouse quantity fields to the form.',
-        );
-        alert(
-          'Creating products requires warehouse quantities. Please add them via the API or update the form.',
-        );
+        await axios.post(`${API_BASE}`, payload);
+        await fetchProducts();
         return;
       }
 
@@ -123,7 +159,12 @@ const Products = () => {
       console.error('Error saving product:', err);
       let errorMessage = 'Failed to save product';
       if (err && typeof err === 'object') {
-        if ('response' in err && err.response && typeof err.response === 'object' && 'data' in err.response) {
+        if (
+          'response' in err &&
+          err.response &&
+          typeof err.response === 'object' &&
+          'data' in err.response
+        ) {
           const responseData = err.response.data;
           if (responseData && typeof responseData === 'object' && 'message' in responseData) {
             errorMessage = String(responseData.message);
@@ -168,7 +209,7 @@ const Products = () => {
     },
     {
       key: 'weight',
-      label: 'Weight',
+      label: 'Quantity',
       render: (row: Product) => (row.weight ? `${row.weight}` : '-'),
     },
     {
@@ -198,6 +239,13 @@ const Products = () => {
   const fields: FormField[] = [
     { key: 'name', label: 'Product Name', required: true },
     {
+      key: 'warehouseId',
+      label: 'Warehouse',
+      type: 'select',
+      required: true,
+      options: warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
+    },
+    {
       key: 'fabricId',
       label: 'Fabric',
       type: 'select',
@@ -212,7 +260,7 @@ const Products = () => {
       options: colors.map((color) => ({ id: color.id, name: color.name })),
     },
     { key: 'price', label: 'Price', type: 'number', required: false },
-    { key: 'weight', label: 'Weight', type: 'number', required: false },
+    { key: 'weight', label: 'Quantity', type: 'number', required: false },
     {
       key: 'unit',
       label: 'Unit',

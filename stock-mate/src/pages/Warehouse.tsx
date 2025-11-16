@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
 import axios from 'axios';
+import dayjs from 'dayjs';
 import CustomForm from '../components/CustomForm';
 import CustomTable from '../components/CustomTable';
 import CustomSearchFilter from '../components/CustomSearchFilter';
@@ -120,6 +121,17 @@ const WarehousePage = () => {
     { key: 'name', label: 'Name' },
     { key: 'address', label: 'Address' },
     { key: 'size', label: 'Size' },
+    {
+      key: 'updatedAt',
+      label: 'Date',
+      render: (row: WarehouseType) => {
+        const updatedAt = row.updatedAt;
+        if (updatedAt) {
+          return dayjs(updatedAt).format('DD-MM-YYYY');
+        }
+        return '-';
+      },
+    },
   ];
 
   return (

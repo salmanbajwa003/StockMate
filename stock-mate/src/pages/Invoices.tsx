@@ -4,6 +4,7 @@ import CustomTable from '../components/CustomTable';
 import CustomSearchFilter from '../components/CustomSearchFilter';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import dayjs from 'dayjs';
 import type { SearchOption, Invoice, Customer, Warehouse, Column } from '../utils/types';
 import { API_ENDPOINTS } from '../utils/constants';
 
@@ -128,10 +129,21 @@ const Invoices = () => {
     { key: 'invoiceNumber', label: 'Invoice #' },
     { key: 'customer', label: 'Customer' },
     { key: 'warehouse', label: 'Warehouse' },
-    { key: 'invoiceDate', label: 'Date' },
+    { key: 'invoiceDate', label: 'Invoice Date' },
     { key: 'status', label: 'Status' },
     { key: 'subtotal', label: 'Subtotal' },
     { key: 'total', label: 'Total' },
+    {
+      key: 'updatedAt',
+      label: 'Date',
+      render: (row: Invoice) => {
+        const updatedAt = row.updatedAt;
+        if (updatedAt) {
+          return dayjs(updatedAt).format('DD-MM-YYYY');
+        }
+        return '-';
+      },
+    },
   ];
 
   return (

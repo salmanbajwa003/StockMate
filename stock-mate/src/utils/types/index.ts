@@ -20,6 +20,7 @@ export interface Customer {
   phone_number2?: string; // Optional
   phone_number3?: string; // Optional
   address?: string; // Optional
+  updatedAt?: string | Date; // Optional - last update timestamp
   [key: string]: unknown; // Index signature for type compatibility
 }
 
@@ -28,6 +29,7 @@ export interface Warehouse {
   name: string; // Required
   address: string; // Required
   size?: string; // Optional
+  updatedAt?: string | Date; // Optional - last update timestamp
   [key: string]: unknown; // Index signature for type compatibility
 }
 
@@ -44,6 +46,7 @@ export interface Product {
     unit: string;
     warehouse?: { id: number; name: string };
   }>;
+  updatedAt?: string | Date; // Optional - last update timestamp
   [key: string]: unknown; // Index signature for type compatibility
 }
 
@@ -72,6 +75,7 @@ export interface Invoice {
   total: number; // Calculated, not input
   notes?: string; // Optional
   items?: InvoiceItem[]; // Required for creation
+  updatedAt?: string | Date; // Optional - last update timestamp
   [key: string]: unknown; // Index signature for type compatibility
 }
 

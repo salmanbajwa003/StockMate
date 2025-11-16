@@ -17,6 +17,7 @@ const WarehousePage = () => {
   const [filteredWarehouses, setFilteredWarehouses] = useState<WarehouseType[]>([]);
   const [selectedWarehouse, setSelectedWarehouse] = useState<WarehouseType | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [searchKey, setSearchKey] = useState<string>('name');
   const [searchValue, setSearchValue] = useState<string>('');
 
@@ -64,6 +65,7 @@ const WarehousePage = () => {
   // ✅ Add or Update
   const handleAddOrUpdate = async (data: Record<string, string | number | boolean>) => {
     try {
+      setSaving(true);
       //  Prepare payload with correct data types
       const payload: Record<string, string> = {
         name: String(data.name),
@@ -98,6 +100,8 @@ const WarehousePage = () => {
         }
       }
       alert(`Error: ${errorMessage}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -152,6 +156,7 @@ const WarehousePage = () => {
                 : null
             }
             onCancel={handleCancel}
+            loading={saving}
           />
         </Box>
 

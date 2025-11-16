@@ -14,6 +14,7 @@ const Fibers = () => {
   const [filteredFibers, setFilteredFibers] = useState<Fiber[]>([]);
   const [selectedFiber, setSelectedFiber] = useState<Fiber | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [searchKey, setSearchKey] = useState<string>('name');
   const [searchValue, setSearchValue] = useState<string>('');
 
@@ -59,6 +60,7 @@ const Fibers = () => {
   // Add or Update Fiber
   const handleAddOrUpdate = async (data: Record<string, string | number>) => {
     try {
+      setSaving(true);
       const payload: Record<string, string> = {
         name: String(data.name),
       };
@@ -90,6 +92,8 @@ const Fibers = () => {
         }
       }
       alert(`Error: ${errorMessage}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -141,6 +145,7 @@ const Fibers = () => {
                 : null
             }
             onCancel={handleCancel}
+            loading={saving}
           />
         </Box>
 

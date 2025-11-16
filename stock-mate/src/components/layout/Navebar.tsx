@@ -13,7 +13,7 @@ const Navbar = () => {
     { to: '/products', label: 'Products' },
     { to: '/customers', label: 'Customers' },
     { to: '/warehouse', label: 'Warehouse' },
-    { to: '/invoices', label: 'Invoices' },
+    // { to: '/invoices', label: 'Invoices' },
     { to: '/colors', label: 'Colors' },
     { to: '/fibers', label: 'Fibers' },
   ];

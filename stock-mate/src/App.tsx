@@ -7,7 +7,7 @@ import Products from './pages/Products';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
-import Invoices from './pages/Invoices';
+// import Invoices from './pages/Invoices';
 import Colors from './pages/Colors';
 import Fibers from './pages/Fibers';
 
@@ -37,7 +37,7 @@ function App() {
                       <Route path="/products" element={<Products />} />
                       <Route path="/customers" element={<Customers />} />
                       <Route path="/warehouse" element={<WarehousePage />} />
-                      <Route path="/invoices" element={<Invoices />} />
+                      {/* <Route path="/invoices" element={<Invoices />} /> */}
                       <Route path="/colors" element={<Colors />} />
                       <Route path="/fibers" element={<Fibers />} />
                     </Routes>

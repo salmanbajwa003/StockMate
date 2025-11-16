@@ -14,6 +14,7 @@ const Colors = () => {
   const [filteredColors, setFilteredColors] = useState<Color[]>([]);
   const [selectedColor, setSelectedColor] = useState<Color | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [searchKey, setSearchKey] = useState<string>('name');
   const [searchValue, setSearchValue] = useState<string>('');
 
@@ -60,6 +61,7 @@ const Colors = () => {
   // Add or Update Color
   const handleAddOrUpdate = async (data: Record<string, string | number>) => {
     try {
+      setSaving(true);
       const payload: Record<string, string> = {
         name: String(data.name),
       };
@@ -92,6 +94,8 @@ const Colors = () => {
         }
       }
       alert(`Error: ${errorMessage}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -146,6 +150,7 @@ const Colors = () => {
                 : null
             }
             onCancel={handleCancel}
+            loading={saving}
           />
         </Box>
 

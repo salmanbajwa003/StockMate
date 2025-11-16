@@ -12,6 +12,8 @@ const Invoices = () => {
   const [filteredRows, setFilteredRows] = useState<Invoice[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadingDropdowns, setLoadingDropdowns] = useState(false);
   const [searchKey, setSearchKey] = useState<string>('invoiceNumber');
   const [searchValue, setSearchValue] = useState<string>('');
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -50,9 +52,15 @@ const Invoices = () => {
   };
 
   useEffect(() => {
-    fetchInvoices();
-    fetchCustomers();
-    fetchWarehouses();
+    const loadData = async () => {
+      setLoadingDropdowns(true);
+      try {
+        await Promise.all([fetchInvoices(), fetchCustomers(), fetchWarehouses()]);
+      } finally {
+        setLoadingDropdowns(false);
+      }
+    };
+    loadData();
   }, []);
 
   // Search options based on backend fields
@@ -79,6 +87,7 @@ const Invoices = () => {
 
   const handleAddOrUpdate = async (data: Record<string, string | number>) => {
     try {
+      setSaving(true);
       const payload = {
         invoiceNumber: String(data.invoiceNumber),
         customerId: Number(data.customerId),
@@ -101,6 +110,8 @@ const Invoices = () => {
       setSelectedInvoice(null);
     } catch (err) {
       console.error('Error saving invoice:', err);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -193,6 +204,7 @@ const Invoices = () => {
                 : null
             }
             onCancel={handleCancel}
+            loading={saving || loadingDropdowns}
           />
         </Box>
 

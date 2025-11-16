@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, TextField, Button, Paper, MenuItem, Typography } from '@mui/material';
+import { Box, TextField, Button, Paper, MenuItem, Typography, CircularProgress } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs, { Dayjs } from 'dayjs';
 import type { FormField } from '../utils/types';
@@ -11,9 +11,10 @@ interface CustomFormProps {
   initialData?: Record<string, any> | null;
   onCancel?: () => void;
   title?: string;
+  loading?: boolean;
 }
 
-const CustomForm = ({ fields, onSubmit, initialData, onCancel, title }: CustomFormProps) => {
+const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = false }: CustomFormProps) => {
   const [formData, setFormData] = useState<Record<string, string | number | Dayjs | null>>({});
   const [errors, setErrors] = useState<Record<string, string>>({}); // ✅ store error messages instead of booleans
 
@@ -236,6 +237,7 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title }: CustomFo
                         required: field.required === true,
                         error: !!errors[field.key],
                         helperText: errors[field.key] || ' ',
+                        disabled: loading,
                         sx: { width: '100%' },
                       },
                     }}
@@ -252,6 +254,7 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title }: CustomFo
                     size="small"
                     fullWidth
                     required={field.required === true}
+                    disabled={loading}
                     sx={{ width: '100%' }}
                   >
                     {isSelect &&
@@ -282,6 +285,7 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title }: CustomFo
               <Button
                 type="submit"
                 variant="contained"
+                disabled={loading}
                 sx={{
                   flex: 1,
                   backgroundColor: '#1976d2',
@@ -290,11 +294,11 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title }: CustomFo
                   },
                 }}
               >
-                {isEditMode ? 'Save' : 'Add'}
+                {loading ? <CircularProgress size={20} color="inherit" /> : isEditMode ? 'Save' : 'Add'}
               </Button>
 
               {isEditMode && (
-                <Button type="button" variant="outlined" sx={{ flex: 1 }} onClick={onCancel}>
+                <Button type="button" variant="outlined" sx={{ flex: 1 }} onClick={onCancel} disabled={loading}>
                   Cancel
                 </Button>
               )}

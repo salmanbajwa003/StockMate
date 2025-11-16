@@ -42,7 +42,7 @@ export interface Product {
   productWarehouses?: Array<{
     quantity: number;
     unit: string;
-    warehouse?: { name: string };
+    warehouse?: { id: number; name: string };
   }>;
   [key: string]: unknown; // Index signature for type compatibility
 }

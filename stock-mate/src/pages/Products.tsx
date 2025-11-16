@@ -22,6 +22,8 @@ const Products = () => {
   const [filteredRows, setFilteredRows] = useState<Product[]>([]);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadingDropdowns, setLoadingDropdowns] = useState(false);
   const [searchKey, setSearchKey] = useState<string>('name');
   const [searchValue, setSearchValue] = useState<string>('');
   const [fabrics, setFabrics] = useState<Fiber[]>([]);
@@ -77,10 +79,15 @@ const Products = () => {
   };
 
   useEffect(() => {
-    fetchProducts();
-    fetchFabrics();
-    fetchColors();
-    fetchWarehouses();
+    const loadData = async () => {
+      setLoadingDropdowns(true);
+      try {
+        await Promise.all([fetchProducts(), fetchFabrics(), fetchColors(), fetchWarehouses()]);
+      } finally {
+        setLoadingDropdowns(false);
+      }
+    };
+    loadData();
   }, []);
 
   // Filter products based on search
@@ -103,6 +110,7 @@ const Products = () => {
     console.log('🚀 ~ handleAddOrUpdate ~ data:', data);
 
     try {
+      setSaving(true);
       // Build payload with required and optional fields
       const payload: {
         name: string;
@@ -130,15 +138,15 @@ const Products = () => {
       };
 
       // Add optional fields if they have values
-      // if (data.price !== undefined && data.price !== null && data.price !== '') {
-      //   payload.price = Number(data.price);
-      // }
-      // if (data.weight !== undefined && data.weight !== null && data.weight !== '') {
-      //   payload.weight = Number(data.weight);
-      // }
-      // if (data.unit !== undefined && data.unit !== null && data.unit !== '') {
-      //   payload.unit = String(data.unit);
-      // }
+      if (data.price !== undefined && data.price !== null && data.price !== '') {
+        payload.price = Number(data.price);
+      }
+      if (data.weight !== undefined && data.weight !== null && data.weight !== '') {
+        payload.weight = Number(data.weight);
+      }
+      if (data.unit !== undefined && data.unit !== null && data.unit !== '') {
+        payload.unit = String(data.unit);
+      }
 
       if (selectedItem) {
         // For update, all fields are optional (UpdateProductDto extends PartialType)
@@ -174,6 +182,8 @@ const Products = () => {
         }
       }
       alert(`Error: ${errorMessage}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -224,7 +234,8 @@ const Products = () => {
         if (row.productWarehouses && row.productWarehouses.length > 0) {
           return row.productWarehouses
             .map(
-              (pw) => `${pw.quantity} ${pw.unit}${pw.warehouse ? ` (${pw.warehouse.name})` : ''}`,
+              // (pw) => `${pw.quantity} ${pw.unit}${pw.warehouse ? ` (${pw.warehouse.name})` : ''}`,
+              (pw) => `${pw?.warehouse?.name || ''}`,
             )
             .join(', ');
         }
@@ -266,7 +277,7 @@ const Products = () => {
       label: 'Unit',
       type: 'select',
       required: false,
-      options: ['meter', 'yard', 'kg', 'piece'],
+      options: ['meter', 'yard', 'kg'],
     },
   ];
 
@@ -300,10 +311,16 @@ const Products = () => {
                     price: selectedItem.price || '',
                     weight: selectedItem.weight || '',
                     unit: selectedItem.unit || '',
+                    warehouseId:
+                      typeof selectedItem.productWarehouses?.[0]?.warehouse === 'object' &&
+                      selectedItem.productWarehouses?.[0]?.warehouse?.id
+                        ? selectedItem.productWarehouses?.[0]?.warehouse?.id
+                        : '',
                   }
                 : null
             }
             onCancel={handleCancel}
+            loading={saving || loadingDropdowns}
           />
         </Box>
 

@@ -14,6 +14,7 @@ const Customers = () => {
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [searchKey, setSearchKey] = useState<string>('name');
   const [searchValue, setSearchValue] = useState<string>('');
 
@@ -61,6 +62,7 @@ const Customers = () => {
   // ✅ Add or Update Customer
   const handleAddOrUpdate = async (data: Record<string, string | number>) => {
     try {
+      setSaving(true);
       const payload: Record<string, string> = {
         name: String(data.name),
         email: String(data.email),
@@ -104,6 +106,8 @@ const Customers = () => {
         }
       }
       alert(`Error: ${errorMessage}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -174,6 +178,7 @@ const Customers = () => {
                 : null
             }
             onCancel={handleCancel}
+            loading={saving}
           />
         </Box>
 

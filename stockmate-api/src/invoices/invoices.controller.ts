@@ -33,16 +33,9 @@ export class InvoicesController {
 
   @Get()
   @ApiOperation({ summary: 'Get all invoices' })
-  @ApiQuery({ name: 'customerId', required: false, type: Number })
-  @ApiQuery({ name: 'warehouseId', required: false, type: Number })
-  @ApiQuery({ name: 'status', required: false, enum: InvoiceStatus })
   @ApiResponse({ status: 200, description: 'Return all invoices.' })
-  findAll(
-    @Query('customerId', new ParseIntPipe({ optional: true })) customerId?: number,
-    @Query('warehouseId', new ParseIntPipe({ optional: true })) warehouseId?: number,
-    @Query('status') status?: InvoiceStatus,
-  ) {
-    return this.invoicesService.findAll(customerId, warehouseId, status);
+  findAll() {
+    return this.invoicesService.findAll();
   }
 
   @Get(':id')
@@ -56,28 +49,10 @@ export class InvoicesController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update an invoice' })
   @ApiResponse({ status: 200, description: 'Invoice successfully updated.' })
-  @ApiResponse({ status: 400, description: 'Cannot update paid/cancelled invoice.' })
+  @ApiResponse({ status: 400, description: 'Cannot update paid invoice.' })
   @ApiResponse({ status: 404, description: 'Invoice not found.' })
   update(@Param('id', ParseIntPipe) id: number, @Body() updateInvoiceDto: UpdateInvoiceDto) {
     return this.invoicesService.update(id, updateInvoiceDto);
-  }
-
-  @Post(':id/mark-paid')
-  @ApiOperation({ summary: 'Mark an invoice as paid' })
-  @ApiResponse({ status: 200, description: 'Invoice marked as paid.' })
-  @ApiResponse({ status: 400, description: 'Invoice already paid or cancelled.' })
-  @ApiResponse({ status: 404, description: 'Invoice not found.' })
-  markAsPaid(@Param('id', ParseIntPipe) id: number) {
-    return this.invoicesService.markAsPaid(id);
-  }
-
-  @Post(':id/cancel')
-  @ApiOperation({ summary: 'Cancel an invoice' })
-  @ApiResponse({ status: 200, description: 'Invoice cancelled.' })
-  @ApiResponse({ status: 400, description: 'Cannot cancel paid invoice.' })
-  @ApiResponse({ status: 404, description: 'Invoice not found.' })
-  cancel(@Param('id', ParseIntPipe) id: number) {
-    return this.invoicesService.cancel(id);
   }
 
   @Delete(':id')

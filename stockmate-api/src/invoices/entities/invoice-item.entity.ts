@@ -2,6 +2,7 @@ import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { Invoice } from './invoice.entity';
 import { Product } from '../../products/entities/product.entity';
+import { UnitType } from '../../common/utils/unit-converter';
 
 @Entity('invoice_items')
 export class InvoiceItem extends BaseEntity {
@@ -16,16 +17,12 @@ export class InvoiceItem extends BaseEntity {
   @Column({ type: 'integer' })
   quantity: number;
 
+  @Column({
+    type: 'enum',
+    enum: UnitType,
+  })
+  unit: UnitType;
+
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   unitPrice: number;
-
-  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
-  discount: number;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  total: number;
-
-  @Column({ type: 'text', nullable: true })
-  notes: string;
 }
-

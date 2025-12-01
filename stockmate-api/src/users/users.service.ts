@@ -19,9 +19,7 @@ export class UsersService {
     });
 
     if (existingUsername) {
-      throw new ConflictException(
-        `Username ${createUserDto.username} already exists`,
-      );
+      throw new ConflictException(`Username ${createUserDto.username} already exists`);
     }
 
     // Check if email already exists
@@ -30,9 +28,7 @@ export class UsersService {
     });
 
     if (existingEmail) {
-      throw new ConflictException(
-        `Email ${createUserDto.email} already exists`,
-      );
+      throw new ConflictException(`Email ${createUserDto.email} already exists`);
     }
 
     const user = this.usersRepository.create(createUserDto);
@@ -60,7 +56,7 @@ export class UsersService {
 
   async findByUsername(username: string): Promise<User | null> {
     return await this.usersRepository.findOne({
-      where: { username },
+      where: { email: username },
     });
   }
 
@@ -80,9 +76,7 @@ export class UsersService {
       });
 
       if (existingUser) {
-        throw new ConflictException(
-          `Username ${updateUserDto.username} already exists`,
-        );
+        throw new ConflictException(`Username ${updateUserDto.username} already exists`);
       }
     }
 
@@ -93,9 +87,7 @@ export class UsersService {
       });
 
       if (existingUser) {
-        throw new ConflictException(
-          `Email ${updateUserDto.email} already exists`,
-        );
+        throw new ConflictException(`Email ${updateUserDto.email} already exists`);
       }
     }
 
@@ -108,4 +100,3 @@ export class UsersService {
     await this.usersRepository.softDelete(id);
   }
 }
-

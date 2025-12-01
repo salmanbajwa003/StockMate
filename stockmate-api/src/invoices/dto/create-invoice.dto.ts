@@ -35,27 +35,11 @@ export class CreateInvoiceDto {
   @IsOptional()
   invoiceDate?: string;
 
-  @ApiPropertyOptional({ example: '2025-11-18T10:00:00Z' })
-  @IsDateString()
-  @IsOptional()
-  dueDate?: string;
-
-  @ApiPropertyOptional({ enum: InvoiceStatus, example: InvoiceStatus.DRAFT })
-  @IsEnum(InvoiceStatus)
-  @IsOptional()
-  status?: InvoiceStatus;
-
-  @ApiPropertyOptional({ example: 10.0 })
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
-  taxRate?: number;
-
   @ApiPropertyOptional({ example: 0 })
   @IsNumber()
   @IsOptional()
   @Min(0)
-  discount?: number;
+  paidAmount?: number;
 
   @ApiPropertyOptional({ example: 'Special instructions or notes' })
   @IsString()
@@ -68,4 +52,3 @@ export class CreateInvoiceDto {
   @Type(() => CreateInvoiceItemDto)
   items: CreateInvoiceItemDto[];
 }
-

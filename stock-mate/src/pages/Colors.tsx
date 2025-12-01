@@ -75,6 +75,7 @@ const Colors = () => {
         console.log('Update response:', response.data);
       } else {
         console.log('Creating color:', payload);
+        console.log('API_URL:', API_URL);
         const response = await axios.post(API_URL, payload);
         console.log('Create response:', response.data);
       }
@@ -84,7 +85,12 @@ const Colors = () => {
       console.error('Error saving color:', err);
       let errorMessage = 'Failed to save color';
       if (err && typeof err === 'object') {
-        if ('response' in err && err.response && typeof err.response === 'object' && 'data' in err.response) {
+        if (
+          'response' in err &&
+          err.response &&
+          typeof err.response === 'object' &&
+          'data' in err.response
+        ) {
           const responseData = err.response.data;
           if (responseData && typeof responseData === 'object' && 'message' in responseData) {
             errorMessage = String(responseData.message);
@@ -129,7 +135,9 @@ const Colors = () => {
         Manage Colors
       </Typography>
 
-      <Box sx={{ display: 'flex', gap: 3, width: '100%', flexDirection: { xs: 'column', md: 'row' } }}>
+      <Box
+        sx={{ display: 'flex', gap: 3, width: '100%', flexDirection: { xs: 'column', md: 'row' } }}
+      >
         {/* Left Side - Form (30%) */}
         <Box sx={{ width: { xs: '100%', md: '30%' }, flexShrink: 0 }}>
           <CustomForm
@@ -155,7 +163,14 @@ const Colors = () => {
         </Box>
 
         {/* Right Side - Table (70%) */}
-        <Box sx={{ width: { xs: '100%', md: '70%' }, display: 'flex', flexDirection: 'column', flex: 1 }}>
+        <Box
+          sx={{
+            width: { xs: '100%', md: '70%' },
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+          }}
+        >
           {/* Search Filter */}
           <CustomSearchFilter
             searchKey={searchKey}
@@ -179,4 +194,3 @@ const Colors = () => {
 };
 
 export default Colors;
-

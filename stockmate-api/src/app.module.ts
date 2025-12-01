@@ -19,33 +19,33 @@ import { DatabaseModule } from './database/database.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    // TypeOrmModule.forRootAsync({
-    //   inject: [ConfigService],
-    //   useFactory: (configService: ConfigService) => ({
-    //     type: 'postgres',
-    //     host: configService.get('DB_HOST'),
-    //     port: configService.get('DB_PORT'),
-    //     username: configService.get('DB_USERNAME'),
-    //     password: configService.get('DB_PASSWORD'),
-    //     database: configService.get('DB_DATABASE'),
-    //     entities: [__dirname + '/**/*.entity{.ts,.js}'],
-    //     synchronize: configService.get('NODE_ENV') === 'development',
-    //     logging: configService.get('NODE_ENV') === 'development',
-    //   }),
-    // }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        url: configService.get<string>('DB_HOST'), // ✔ Correct
-        autoLoadEntities: true,
-        synchronize: configService.get('NODE_ENV') === 'development',
+        host: configService.get('DB_HOST'),
+        port: configService.get('DB_PORT'),
+        username: configService.get('DB_USERNAME'),
+        password: configService.get('DB_PASSWORD'),
+        database: configService.get('DB_DATABASE'),
+        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        synchronize: true,
         logging: configService.get('NODE_ENV') === 'development',
-        ssl: {
-          rejectUnauthorized: false,
-        },
       }),
     }),
+    // TypeOrmModule.forRootAsync({
+    //   inject: [ConfigService],
+    //   useFactory: (configService: ConfigService) => ({
+    //     type: 'postgres',
+    //     url: configService.get<string>('DB_HOST'), // ✔ Correct
+    //     autoLoadEntities: true,
+    //     synchronize: true,
+    //     logging: configService.get('NODE_ENV') === 'development',
+    //     ssl: {
+    //       rejectUnauthorized: false,
+    //     },
+    //   }),
+    // }),
     DatabaseModule,
     WarehousesModule,
     ProductsModule,

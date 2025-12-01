@@ -4,6 +4,7 @@ import Customers from './pages/Customers';
 import Navbar from './components/layout/Navebar';
 import WarehousePage from './pages/Warehouse';
 import Products from './pages/Products';
+import Invoices from './pages/Invoices';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
@@ -40,6 +41,7 @@ function App() {
                       {/* <Route path="/invoices" element={<Invoices />} /> */}
                       <Route path="/colors" element={<Colors />} />
                       <Route path="/fibers" element={<Fibers />} />
+                      <Route path="/invoices" element={<Invoices />} />
                     </Routes>
                   </Box>
                 </Box>

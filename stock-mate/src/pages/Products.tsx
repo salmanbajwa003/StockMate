@@ -266,7 +266,7 @@ const Products = () => {
       label: 'Warehouse',
       type: 'select',
       required: true,
-      options: warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
+      options: warehouses?.map((warehouse) => ({ id: warehouse.id, name: warehouse.name })) || [],
     },
     {
       key: 'fabricId',

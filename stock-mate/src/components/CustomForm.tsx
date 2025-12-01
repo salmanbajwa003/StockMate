@@ -237,7 +237,7 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = 
                         required: field.required === true,
                         error: !!errors[field.key],
                         helperText: errors[field.key] || ' ',
-                        disabled: loading,
+                        disabled: loading || field.disabled === true,
                         sx: { width: '100%' },
                       },
                     }}

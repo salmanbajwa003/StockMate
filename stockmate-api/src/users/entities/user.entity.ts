@@ -16,3 +16,7 @@ export class User extends BaseEntity {
   password: string;
 }
 
+// docker-compose build --no-cache app
+// docker-compose down -v
+// docker-compose up -d
+// docker-compose up -d --build --force-recreate

@@ -1,5 +1,6 @@
-import { IsNumber, IsNotEmpty, Min, IsOptional, IsString } from 'class-validator';
+import { IsNumber, IsNotEmpty, Min, IsOptional, IsString, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UnitType } from '../../common/utils/unit-converter';
 
 export class CreateInvoiceItemDto {
   @ApiProperty({ example: 1 })
@@ -12,20 +13,14 @@ export class CreateInvoiceItemDto {
   @Min(1)
   quantity: number;
 
+  @ApiProperty({ enum: UnitType, example: UnitType.METER })
+  @IsEnum(UnitType)
+  @IsNotEmpty()
+  unit: UnitType;
+
   @ApiProperty({ example: 99.99 })
   @IsNumber()
   @Min(0)
   unitPrice: number;
-
-  @ApiPropertyOptional({ example: 5.0 })
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
-  discount?: number;
-
-  @ApiPropertyOptional({ example: 'Special instructions' })
-  @IsString()
-  @IsOptional()
-  notes?: string;
 }
 

@@ -49,8 +49,7 @@ export class InvoicesService {
       throw new BadRequestException('Invoice must have at least one item');
     }
 
-    // Calculate totals
-    let subtotal = 0;
+    // Create invoice items
     const invoiceItems: InvoiceItem[] = [];
 
     for (const itemDto of items) {
@@ -66,49 +65,66 @@ export class InvoicesService {
         throw new BadRequestException(`Product ${product.name} is not available in this warehouse`);
       }
 
+      // Validate that the unit matches the product warehouse unit
+      if (productWarehouse.unit !== itemDto.unit) {
+        throw new BadRequestException(
+          `Unit mismatch for product ${product.name}. Product unit in warehouse is ${productWarehouse.unit}, but invoice item unit is ${itemDto.unit}. Unit must match the product's warehouse unit.`,
+        );
+      }
+
       if (productWarehouse.quantity < itemDto.quantity) {
         throw new BadRequestException(
           `Insufficient quantity for product ${product.name}. Available: ${productWarehouse.quantity}, Requested: ${itemDto.quantity}`,
         );
       }
 
-      const itemTotal = itemDto.quantity * itemDto.unitPrice - (itemDto.discount || 0);
-      subtotal += itemTotal;
-
       const invoiceItem = this.invoiceItemsRepository.create({
         product,
         quantity: itemDto.quantity,
+        unit: itemDto.unit,
         unitPrice: itemDto.unitPrice,
-        discount: itemDto.discount || 0,
-        total: itemTotal,
-        notes: itemDto.notes,
       });
 
       invoiceItems.push(invoiceItem);
     }
 
-    const taxAmount = (subtotal * (invoiceData.taxRate || 0)) / 100;
-    const total = subtotal + taxAmount - (invoiceData.discount || 0);
+    const paidAmount = invoiceData.paidAmount || 0;
+    const total = this.calculateSubtotal(invoiceItems);
+    const remainingAmount = total - paidAmount;
+
+    // Determine status based on remaining amount
+    // If total equals paid amount, invoice is PAID (Completed), otherwise PENDING
+    // Using small epsilon for floating point comparison
+    const status =
+      Math.abs(remainingAmount) < 0.01 || total === paidAmount
+        ? InvoiceStatus.PAID
+        : InvoiceStatus.PENDING;
 
     // Create invoice
     const invoice = this.invoicesRepository.create({
       ...invoiceData,
       customer,
       warehouse,
-      subtotal,
-      taxAmount,
       total,
+      paidAmount,
+      status,
       items: invoiceItems,
     });
 
     const savedInvoice = await this.invoicesRepository.save(invoice);
 
-    // If invoice is not draft, deduct from warehouse quantities
-    if (savedInvoice.status !== InvoiceStatus.DRAFT) {
-      await this.deductWarehouseQuantities(savedInvoice);
-    }
+    // Deduct from warehouse quantities when invoice is created
+    await this.deductWarehouseQuantities(savedInvoice);
 
     return savedInvoice;
+  }
+
+  private calculateItemTotal(item: InvoiceItem): number {
+    return item.quantity * item.unitPrice;
+  }
+
+  private calculateSubtotal(items: InvoiceItem[]): number {
+    return items.reduce((sum, item) => sum + this.calculateItemTotal(item), 0);
   }
 
   private async deductWarehouseQuantities(invoice: Invoice): Promise<void> {
@@ -123,29 +139,13 @@ export class InvoicesService {
     }
   }
 
-  async findAll(
-    customerId?: number,
-    warehouseId?: number,
-    status?: InvoiceStatus,
-  ): Promise<Invoice[]> {
+  async findAll(): Promise<Invoice[]> {
     const query = this.invoicesRepository
       .createQueryBuilder('invoice')
       .leftJoinAndSelect('invoice.customer', 'customer')
       .leftJoinAndSelect('invoice.warehouse', 'warehouse')
       .leftJoinAndSelect('invoice.items', 'items')
       .leftJoinAndSelect('items.product', 'product');
-
-    if (customerId) {
-      query.andWhere('customer.id = :customerId', { customerId });
-    }
-
-    if (warehouseId) {
-      query.andWhere('warehouse.id = :warehouseId', { warehouseId });
-    }
-
-    if (status) {
-      query.andWhere('invoice.status = :status', { status });
-    }
 
     return await query.orderBy('invoice.createdAt', 'DESC').getMany();
   }
@@ -170,75 +170,33 @@ export class InvoicesService {
       throw new BadRequestException('Cannot update a paid invoice');
     }
 
-    if (invoice.status === InvoiceStatus.CANCELLED) {
-      throw new BadRequestException('Cannot update a cancelled invoice');
-    }
+    // Validate paidAmount doesn't exceed total
+    if (updateInvoiceDto.paidAmount !== undefined) {
+      const paidAmount = Number(updateInvoiceDto.paidAmount);
+      const total = Number(invoice.total);
 
-    // Update basic fields
-    Object.assign(invoice, updateInvoiceDto);
-
-    // Recalculate if tax rate or discount changed
-    if (updateInvoiceDto.taxRate !== undefined || updateInvoiceDto.discount !== undefined) {
-      invoice.taxAmount = (invoice.subtotal * (invoice.taxRate || 0)) / 100;
-      invoice.total = invoice.subtotal + invoice.taxAmount - (invoice.discount || 0);
-    }
-
-    return await this.invoicesRepository.save(invoice);
-  }
-
-  async markAsPaid(id: number): Promise<Invoice> {
-    const invoice = await this.findOne(id);
-
-    if (invoice.status === InvoiceStatus.PAID) {
-      throw new BadRequestException('Invoice is already marked as paid');
-    }
-
-    if (invoice.status === InvoiceStatus.CANCELLED) {
-      throw new BadRequestException('Cannot mark a cancelled invoice as paid');
-    }
-
-    const wasPending = invoice.status === InvoiceStatus.PENDING;
-
-    invoice.status = InvoiceStatus.PAID;
-    invoice.paidAt = new Date();
-
-    const savedInvoice = await this.invoicesRepository.save(invoice);
-
-    // If it was pending, warehouse quantities were already deducted
-    // If it was draft, deduct now
-    if (!wasPending) {
-      await this.deductWarehouseQuantities(savedInvoice);
-    }
-
-    return savedInvoice;
-  }
-
-  async cancel(id: number): Promise<Invoice> {
-    const invoice = await this.findOne(id);
-
-    if (invoice.status === InvoiceStatus.PAID) {
-      throw new BadRequestException(
-        'Cannot cancel a paid invoice. Please create a refund instead.',
-      );
-    }
-
-    if (invoice.status === InvoiceStatus.CANCELLED) {
-      throw new BadRequestException('Invoice is already cancelled');
-    }
-
-    // If warehouse quantity was deducted (status was pending), restore it
-    if (invoice.status === InvoiceStatus.PENDING) {
-      for (const item of invoice.items) {
-        await this.productsService.adjustWarehouseQuantity(
-          item.product.id,
-          invoice.warehouse.id,
-          item.quantity,
-          `Invoice ${invoice.invoiceNumber} cancelled`,
+      if (paidAmount > total) {
+        throw new BadRequestException(
+          `Paid amount (${paidAmount}) cannot exceed total amount (${total})`,
         );
       }
+
+      invoice.paidAmount = paidAmount;
     }
 
-    invoice.status = InvoiceStatus.CANCELLED;
+    if (updateInvoiceDto.notes !== undefined) {
+      invoice.notes = updateInvoiceDto.notes;
+    }
+
+    // Recalculate status based on paidAmount
+    // Total remains unchanged (calculated from items which are not editable)
+    const remainingAmount = invoice.total - invoice.paidAmount;
+    if (Math.abs(remainingAmount) < 0.01 || invoice.total === invoice.paidAmount) {
+      invoice.status = InvoiceStatus.PAID;
+    } else {
+      invoice.status = InvoiceStatus.PENDING;
+    }
+
     return await this.invoicesRepository.save(invoice);
   }
 
@@ -249,9 +207,14 @@ export class InvoicesService {
       throw new BadRequestException('Cannot delete a paid invoice');
     }
 
-    // If pending, restore warehouse quantities before deletion
-    if (invoice.status === InvoiceStatus.PENDING) {
-      await this.cancel(id);
+    // Restore warehouse quantities before deletion
+    for (const item of invoice.items) {
+      await this.productsService.adjustWarehouseQuantity(
+        item.product.id,
+        invoice.warehouse.id,
+        item.quantity,
+        `Invoice ${invoice.invoiceNumber} deleted`,
+      );
     }
 
     await this.invoicesRepository.softDelete(id);

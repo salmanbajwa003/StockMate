@@ -16,6 +16,7 @@ const Navbar = () => {
     // { to: '/invoices', label: 'Invoices' },
     { to: '/colors', label: 'Colors' },
     { to: '/fibers', label: 'Fibers' },
+    { to: '/invoices', label: 'Invoices' },
   ];
 
   const handleLogout = () => {

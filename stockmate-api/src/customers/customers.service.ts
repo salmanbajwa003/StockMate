@@ -13,15 +13,13 @@ export class CustomersService {
   ) {}
 
   async create(createCustomerDto: CreateCustomerDto): Promise<Customer> {
-    // Check if email already exists
+    // Check if phone already exists
     const existingCustomer = await this.customersRepository.findOne({
-      where: { email: createCustomerDto.email },
+      where: { phone: createCustomerDto.phone },
     });
 
     if (existingCustomer) {
-      throw new ConflictException(
-        `Customer with email ${createCustomerDto.email} already exists`,
-      );
+      throw new ConflictException(`Customer with phone ${createCustomerDto.phone} already exists`);
     }
 
     const customer = this.customersRepository.create(createCustomerDto);
@@ -84,4 +82,3 @@ export class CustomersService {
     await this.customersRepository.softDelete(id);
   }
 }
-

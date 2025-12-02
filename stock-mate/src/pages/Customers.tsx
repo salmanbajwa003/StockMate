@@ -22,7 +22,7 @@ const Customers = () => {
   // Search options based on backend fields
   const searchOptions: SearchOption[] = [
     { label: 'By Name', value: 'name' },
-    { label: 'By Email', value: 'email' },
+    // { label: 'By Email', value: 'email' }, // Commented out
     { label: 'By Phone', value: 'phone' },
     { label: 'By ID', value: 'id' },
   ];
@@ -66,14 +66,17 @@ const Customers = () => {
       setSaving(true);
       const payload: Record<string, string> = {
         name: String(data.name),
-        email: String(data.email),
+        phone: String(data.phone),
+        // email: String(data.email), // Commented out
       };
 
       // Add optional fields if they exist
-      if (data.phone) payload.phone = String(data.phone);
       if (data.phone_number2) payload.phone_number2 = String(data.phone_number2);
-      if (data.phone_number3) payload.phone_number3 = String(data.phone_number3);
+      // if (data.phone_number3) payload.phone_number3 = String(data.phone_number3); // Commented out
       if (data.address) payload.address = String(data.address);
+      if (data.driver_name) payload.driver_name = String(data.driver_name);
+      if (data.vehicle_make) payload.vehicle_make = String(data.vehicle_make);
+      if (data.driver_no) payload.driver_no = String(data.driver_no);
 
       if (selectedCustomer) {
         // Update existing
@@ -125,16 +128,19 @@ const Customers = () => {
   const columns: Column<Customer>[] = [
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Name' },
-    { key: 'email', label: 'Email' },
+    // { key: 'email', label: 'Email' }, // Commented out
     {
       key: 'phone',
       label: 'Phone Numbers',
       render: (row: Customer) => {
-        const phones = [row.phone, row.phone_number2, row.phone_number3].filter(Boolean);
+        const phones = [row.phone, row.phone_number2].filter(Boolean); // Removed phone_number3
         return phones.length > 0 ? phones.join(', ') : '-';
       },
     },
     { key: 'address', label: 'Address' },
+    { key: 'driver_name', label: 'Driver Name' },
+    { key: 'vehicle_make', label: 'Vehicle Make' },
+    { key: 'driver_no', label: 'Driver No.' },
     {
       key: 'updatedAt',
       label: 'Date',
@@ -170,22 +176,28 @@ const Customers = () => {
             title="Customer Details"
             fields={[
               { key: 'name', label: 'Name', required: true },
-              { key: 'email', label: 'Email', type: 'email', required: true },
-              { key: 'phone', label: 'Phone', required: false },
+              // { key: 'email', label: 'Email', type: 'email', required: true }, // Commented out
+              { key: 'phone', label: 'Phone', required: true },
               { key: 'phone_number2', label: 'Phone Number 2', required: false },
-              { key: 'phone_number3', label: 'Phone Number 3', required: false },
+              // { key: 'phone_number3', label: 'Phone Number 3', required: false }, // Commented out
               { key: 'address', label: 'Address', required: false },
+              { key: 'driver_name', label: 'Driver Name', required: false },
+              { key: 'vehicle_make', label: 'Vehicle Make', required: false },
+              { key: 'driver_no', label: 'Driver No.', required: false },
             ]}
             onSubmit={handleAddOrUpdate}
             initialData={
               selectedCustomer
                 ? {
                     name: selectedCustomer.name,
-                    email: selectedCustomer.email,
+                    // email: selectedCustomer.email, // Commented out
                     phone: selectedCustomer.phone || '',
                     phone_number2: selectedCustomer.phone_number2 || '',
-                    phone_number3: selectedCustomer.phone_number3 || '',
+                    // phone_number3: selectedCustomer.phone_number3 || '', // Commented out
                     address: selectedCustomer.address || '',
+                    driver_name: selectedCustomer.driver_name || '',
+                    vehicle_make: selectedCustomer.vehicle_make || '',
+                    driver_no: selectedCustomer.driver_no || '',
                   }
                 : null
             }

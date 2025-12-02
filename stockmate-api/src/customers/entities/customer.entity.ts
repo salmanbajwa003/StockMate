@@ -6,7 +6,7 @@ export class Customer extends BaseEntity {
   @Column({ length: 100 })
   name: string;
 
-  @Column({ length: 150, unique: true })
+  @Column({ length: 150, unique: true, nullable: true })
   email: string;
 
   @Column({ length: 20, nullable: true })
@@ -20,4 +20,13 @@ export class Customer extends BaseEntity {
 
   @Column({ type: 'text', nullable: true })
   address: string;
+
+  @Column({ length: 100, nullable: true })
+  driver_name: string;
+
+  @Column({ length: 100, nullable: true })
+  vehicle_make: string;
+
+  @Column({ length: 50, nullable: true })
+  driver_no: string;
 }

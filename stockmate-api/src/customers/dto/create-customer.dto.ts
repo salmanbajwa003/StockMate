@@ -7,14 +7,15 @@ export class CreateCustomerDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: 'john.doe@example.com' })
+  @ApiPropertyOptional({ example: 'john.doe@example.com' })
   @IsEmail()
-  @IsNotEmpty()
-  email: string;
+  @IsOptional()
+  email?: string;
 
   @ApiPropertyOptional({ example: '03334567890' })
   @IsString()
-  phone: string;
+  @IsOptional()
+  phone?: string;
 
   @ApiPropertyOptional({ example: '03334567890' })
   @IsString()
@@ -30,4 +31,19 @@ export class CreateCustomerDto {
   @IsString()
   @IsOptional()
   address?: string;
+
+  @ApiPropertyOptional({ example: 'John Driver' })
+  @IsString()
+  @IsOptional()
+  driver_name?: string;
+
+  @ApiPropertyOptional({ example: 'Toyota' })
+  @IsString()
+  @IsOptional()
+  vehicle_make?: string;
+
+  @ApiPropertyOptional({ example: 'DRV12345' })
+  @IsString()
+  @IsOptional()
+  driver_no?: string;
 }

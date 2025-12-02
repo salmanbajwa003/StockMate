@@ -15,11 +15,14 @@ export interface SearchOption {
 export interface Customer {
   id: number;
   name: string; // Required
-  email: string; // Required, unique
+  email?: string; // Required, unique (commented out in UI)
   phone?: string; // Optional
   phone_number2?: string; // Optional
-  phone_number3?: string; // Optional
+  phone_number3?: string; // Optional (commented out in UI)
   address?: string; // Optional
+  driver_name?: string; // Optional
+  vehicle_make?: string; // Optional
+  driver_no?: string; // Optional
   updatedAt?: string | Date; // Optional - last update timestamp
   [key: string]: unknown; // Index signature for type compatibility
 }

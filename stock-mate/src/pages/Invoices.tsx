@@ -50,6 +50,14 @@ const Invoices = () => {
   const [searchValue, setSearchValue] = useState<string>('');
   const [totalAmount, setTotalAmount] = useState<string>('0.00');
 
+  // Form state for invoice details
+  const [formData, setFormData] = useState<Record<string, string | number>>({
+    invoiceNumber: '',
+    customerId: '',
+    paidAmount: '',
+    notes: '',
+  });
+
   // Form state for invoice items (not handled by CustomForm)
   const [items, setItems] = useState<InvoiceItemForm[]>([
     { warehouseId: '', productId: '', quantity: '', unit: '', unitPrice: '' },
@@ -245,7 +253,9 @@ const Invoices = () => {
 
         if (requestedQty > availableQty) {
           alert(
-            `Quantity exceeds available stock for ${product?.name || 'product'}. Available: ${availableQty}, Requested: ${requestedQty}`,
+            `Quantity exceeds available stock for ${
+              product?.name || 'product'
+            }. Available: ${availableQty}, Requested: ${requestedQty}`,
           );
           return;
         }
@@ -317,6 +327,14 @@ const Invoices = () => {
     }) || [{ warehouseId: '', productId: '', quantity: '', unit: '', unitPrice: '' }];
     setItems(invoiceItems);
     calculateTotalAmount(invoiceItems);
+
+    // Update form data
+    setFormData({
+      invoiceNumber: invoice.invoiceNumber || '',
+      customerId: typeof invoice.customer === 'object' ? invoice.customer?.id || '' : '',
+      paidAmount: invoice.paidAmount || 0,
+      notes: invoice.notes || '',
+    });
   };
 
   // Cancel edit
@@ -329,6 +347,12 @@ const Invoices = () => {
     const emptyItems = [{ warehouseId: '', productId: '', quantity: '', unit: '', unitPrice: '' }];
     setItems(emptyItems);
     setTotalAmount('0.00');
+    setFormData({
+      invoiceNumber: '',
+      customerId: '',
+      paidAmount: '',
+      notes: '',
+    });
   };
 
   // Get available products for a specific warehouse
@@ -357,19 +381,19 @@ const Invoices = () => {
     {
       key: 'total',
       label: 'Total',
-      render: (row: Invoice) => `$${Number(row.total || 0).toFixed(2)}`,
+      render: (row: Invoice) => `${Number(row.total || 0).toFixed(2)}`,
     },
     {
       key: 'paidAmount',
       label: 'Paid',
-      render: (row: Invoice) => `$${Number(row.paidAmount || 0).toFixed(2)}`,
+      render: (row: Invoice) => `${Number(row.paidAmount || 0).toFixed(2)}`,
     },
     {
       key: 'remainingAmount',
       label: 'Remaining',
       render: (row: Invoice) => {
         const remaining = Number(row.total || 0) - Number(row.paidAmount || 0);
-        return `$${remaining.toFixed(2)}`;
+        return `${remaining.toFixed(2)}`;
       },
     },
     {
@@ -424,317 +448,326 @@ const Invoices = () => {
       >
         {/* Left Side - Form (30%) */}
         <Box sx={{ width: { xs: '100%', md: '30%' }, flexShrink: 0 }}>
-          <CustomForm
-            title="Invoice Details"
-            fields={formFields}
-            onSubmit={handleAddOrUpdate}
-            initialData={
-              selectedInvoice
-                ? {
-                    invoiceNumber: selectedInvoice.invoiceNumber,
-                    customerId:
-                      typeof selectedInvoice.customer === 'object'
-                        ? selectedInvoice.customer?.id
-                        : '',
-                    paidAmount: selectedInvoice.paidAmount || 0,
-                    notes: selectedInvoice.notes || '',
-                  }
-                : null
-            }
-            onCancel={handleCancel}
-            loading={saving}
-          />
-
-          {/* Total Amount Display */}
           <Paper
             elevation={2}
             sx={{
               p: 2,
-              mt: 2,
-              mb: 2,
+              mb: 3,
               borderRadius: 1,
-              backgroundColor: '#f5f5f5',
+              backgroundColor: '#fafafa',
               width: '100%',
               boxSizing: 'border-box',
             }}
           >
-            <TextField
-              label="Total Amount"
-              value={
-                selectedInvoice
-                  ? `$${Number(selectedInvoice.total || 0).toFixed(2)}`
-                  : `$${totalAmount}`
-              }
-              disabled
-              size="small"
-              fullWidth
-              sx={{
-                '& .MuiInputBase-input': {
-                  fontWeight: 'bold',
-                  fontSize: '1.1rem',
-                  color: '#1976d2',
-                },
+            <Box
+              component="form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAddOrUpdate(formData);
               }}
-              helperText={
-                selectedInvoice
-                  ? 'Total from invoice items (not editable)'
-                  : 'Auto-calculated from invoice items (Price Per Unit × Quantity)'
-              }
-            />
-          </Paper>
-
-          {/* Invoice Items Section - Only show for new invoices */}
-          {!selectedInvoice && (
-            <Paper
-              elevation={2}
               sx={{
-                p: 2,
-                mt: 2,
-                borderRadius: 1,
-                backgroundColor: '#fafafa',
                 width: '100%',
                 boxSizing: 'border-box',
               }}
             >
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: '#1976d2' }}>
-                Invoice Items
+              <Typography
+                variant="h6"
+                sx={{
+                  mb: 2,
+                  fontWeight: 'bold',
+                  color: '#1976d2',
+                }}
+              >
+                Invoice Details
               </Typography>
-              {items.map((item, index) => {
-                const availableProductsForItem = getAvailableProducts(item.warehouseId);
-                return (
-                  <Box
-                    key={index}
-                    sx={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 1,
-                      mb: 2,
-                      p: 2,
-                      border: '1px solid #e0e0e0',
-                      borderRadius: 1,
-                      backgroundColor: '#ffffff',
-                    }}
-                  >
-                    <TextField
-                      select
-                      label="Warehouse"
-                      value={item.warehouseId}
-                      onChange={(e) => handleItemChange(index, 'warehouseId', e.target.value)}
-                      required
-                      size="small"
-                      fullWidth
-                      disabled={saving}
+
+              {/* Form Fields */}
+              <Box sx={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                {formFields.map((field) => {
+                  const isSelect = field.options && field.options.length > 0;
+                  const fieldValue = formData[field.key] ?? '';
+
+                  return (
+                    <Box
+                      key={field.key}
+                      sx={{
+                        width: { xs: '100%', sm: 'calc(50% - 8px)' },
+                        boxSizing: 'border-box',
+                        flexGrow: 0,
+                        flexShrink: 0,
+                      }}
                     >
-                      {warehouses.length > 0 ? (
-                        warehouses.map((warehouse) => (
-                          <MenuItem key={warehouse.id} value={warehouse.id}>
-                            {warehouse.name}
+                      <TextField
+                        name={field.key}
+                        select={isSelect}
+                        label={field.label}
+                        type={isSelect ? undefined : field.type || 'text'}
+                        value={fieldValue}
+                        onChange={(e) => {
+                          const value =
+                            field.type === 'number' ? Number(e.target.value) || 0 : e.target.value;
+                          setFormData((prev) => ({ ...prev, [field.key]: value }));
+                        }}
+                        required={field.required === true}
+                        size="small"
+                        fullWidth
+                        disabled={saving}
+                        sx={{ width: '100%' }}
+                      >
+                        {isSelect &&
+                          field.options?.map((option) => {
+                            if (typeof option === 'object' && 'id' in option) {
+                              return (
+                                <MenuItem key={option.id} value={option.id}>
+                                  {option.name}
+                                </MenuItem>
+                              );
+                            }
+                            return (
+                              <MenuItem key={option as string} value={option as string}>
+                                {option as string}
+                              </MenuItem>
+                            );
+                          })}
+                      </TextField>
+                    </Box>
+                  );
+                })}
+              </Box>
+
+              {/* Total Amount Display */}
+              <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
+                <TextField
+                  label="Total Amount"
+                  value={
+                    selectedInvoice
+                      ? `${Number(selectedInvoice.total || 0).toFixed(2)}`
+                      : `${totalAmount}`
+                  }
+                  disabled
+                  size="small"
+                  fullWidth
+                  sx={{
+                    '& .MuiInputBase-input': {
+                      fontWeight: 'bold',
+                      fontSize: '1.1rem',
+                      color: '#1976d2',
+                    },
+                  }}
+                  helperText={
+                    selectedInvoice
+                      ? 'Total from invoice items (not editable)'
+                      : 'Auto-calculated from invoice items (Price Per Unit × Quantity)'
+                  }
+                />
+              </Box>
+
+              {/* Invoice Items Section - Show for both new and existing invoices */}
+              <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: '#1976d2' }}>
+                  Invoice Items
+                </Typography>
+                {items.map((item, index) => {
+                  const availableProductsForItem = getAvailableProducts(item.warehouseId);
+                  return (
+                    <Box
+                      key={index}
+                      sx={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 1,
+                        mb: 2,
+                        p: 2,
+                        border: '1px solid #e0e0e0',
+                        borderRadius: 1,
+                        backgroundColor: '#ffffff',
+                      }}
+                    >
+                      <TextField
+                        select
+                        label="Warehouse"
+                        value={item.warehouseId}
+                        onChange={(e) => handleItemChange(index, 'warehouseId', e.target.value)}
+                        required
+                        size="small"
+                        fullWidth
+                        disabled={saving}
+                      >
+                        {warehouses.length > 0 ? (
+                          warehouses.map((warehouse) => (
+                            <MenuItem key={warehouse.id} value={warehouse.id}>
+                              {warehouse.name}
+                            </MenuItem>
+                          ))
+                        ) : (
+                          <MenuItem value="" disabled>
+                            No warehouses available
                           </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem value="" disabled>
-                          No warehouses available
-                        </MenuItem>
-                      )}
-                    </TextField>
-                    <TextField
-                      select
-                      label="Product"
-                      value={item.productId}
-                      onChange={(e) => handleItemChange(index, 'productId', e.target.value)}
-                      required
-                      size="small"
-                      fullWidth
-                      disabled={!item.warehouseId || saving}
-                    >
-                      {availableProductsForItem.length > 0 ? (
-                        availableProductsForItem.map((product) => (
-                          <MenuItem key={product.id} value={product.id}>
-                            {product.name}
+                        )}
+                      </TextField>
+                      <TextField
+                        select
+                        label="Product"
+                        value={item.productId}
+                        onChange={(e) => handleItemChange(index, 'productId', e.target.value)}
+                        required
+                        size="small"
+                        fullWidth
+                        disabled={!item.warehouseId || saving}
+                      >
+                        {availableProductsForItem.length > 0 ? (
+                          availableProductsForItem.map((product) => (
+                            <MenuItem key={product.id} value={product.id}>
+                              {product.name}
+                            </MenuItem>
+                          ))
+                        ) : (
+                          <MenuItem value="" disabled>
+                            {item.warehouseId ? 'No products available' : 'Select warehouse first'}
                           </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem value="" disabled>
-                          {item.warehouseId ? 'No products available' : 'Select warehouse first'}
-                        </MenuItem>
-                      )}
-                    </TextField>
-                    <TextField
-                      label="Quantity"
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                      required
-                      size="small"
-                      fullWidth
-                      disabled={saving}
-                      inputProps={{ min: 1, step: 0.01 }}
-                    />
-                    <TextField
-                      select
-                      label="Unit"
-                      value={
-                        item.unit ||
-                        (item.productId && item.warehouseId
-                          ? getProductWarehouseUnit(item.productId, item.warehouseId) || ''
-                          : '')
-                      }
-                      onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                      required
-                      size="small"
-                      fullWidth
-                      disabled={!item.productId || !item.warehouseId || saving}
-                      helperText={
-                        item.productId && item.warehouseId
-                          ? getProductWarehouseUnit(item.productId, item.warehouseId)
-                            ? `Auto-selected: ${getProductWarehouseUnit(item.productId, item.warehouseId)}`
-                            : 'Product not available in warehouse'
-                          : 'Select warehouse and product first'
-                      }
-                    >
-                      {(() => {
-                        const productUnit = getProductWarehouseUnit(
-                          item.productId,
-                          item.warehouseId,
-                        );
-                        if (productUnit) {
+                        )}
+                      </TextField>
+                      <TextField
+                        label="Quantity"
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                        required
+                        size="small"
+                        fullWidth
+                        disabled={saving}
+                        inputProps={{ min: 1, step: 0.01 }}
+                      />
+                      <TextField
+                        select
+                        label="Unit"
+                        value={
+                          item.unit ||
+                          (item.productId && item.warehouseId
+                            ? getProductWarehouseUnit(item.productId, item.warehouseId) || ''
+                            : '')
+                        }
+                        onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
+                        required
+                        size="small"
+                        fullWidth
+                        disabled={!item.productId || !item.warehouseId || saving}
+                        helperText={
+                          item.productId && item.warehouseId
+                            ? getProductWarehouseUnit(item.productId, item.warehouseId)
+                              ? `Auto-selected: ${getProductWarehouseUnit(
+                                  item.productId,
+                                  item.warehouseId,
+                                )}`
+                              : 'Product not available in warehouse'
+                            : 'Select warehouse and product first'
+                        }
+                      >
+                        {(() => {
+                          const productUnit = getProductWarehouseUnit(
+                            item.productId,
+                            item.warehouseId,
+                          );
+                          if (productUnit) {
+                            return (
+                              <MenuItem key={productUnit} value={productUnit}>
+                                {productUnit}
+                              </MenuItem>
+                            );
+                          }
                           return (
-                            <MenuItem key={productUnit} value={productUnit}>
-                              {productUnit}
+                            <MenuItem value="" disabled>
+                              {!item.productId || !item.warehouseId
+                                ? 'Select warehouse and product first'
+                                : 'No unit available'}
                             </MenuItem>
                           );
-                        }
-                        // Always provide at least one MenuItem to avoid MUI error
-                        return (
-                          <MenuItem value="" disabled>
-                            {!item.productId || !item.warehouseId
-                              ? 'Select warehouse and product first'
-                              : 'No unit available'}
-                          </MenuItem>
-                        );
-                      })()}
-                    </TextField>
-                    <TextField
-                      label="Price Per Unit"
-                      type="number"
-                      value={item.unitPrice}
-                      onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value)}
-                      required
-                      size="small"
-                      fullWidth
-                      disabled={saving}
-                      inputProps={{ min: 0, step: 0.01 }}
-                      helperText={
-                        item.productId && item.warehouseId && item.quantity
-                          ? `Available: ${getAvailableQuantity(item.productId, item.warehouseId)}`
-                          : ''
-                      }
-                      error={
-                        !!(
-                          item.productId &&
-                          item.warehouseId &&
-                          item.quantity &&
-                          Number(item.quantity) >
-                            getAvailableQuantity(item.productId, item.warehouseId)
-                        )
-                      }
-                    />
-                    {items.length > 1 && (
-                      <IconButton
-                        onClick={() => handleRemoveItem(index)}
-                        color="error"
+                        })()}
+                      </TextField>
+                      <TextField
+                        label="Price Per Unit"
+                        type="number"
+                        value={item.unitPrice}
+                        onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value)}
+                        required
                         size="small"
+                        fullWidth
                         disabled={saving}
-                        sx={{ alignSelf: 'center' }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    )}
-                  </Box>
-                );
-              })}
-              <Button
-                startIcon={<AddIcon />}
-                onClick={handleAddItem}
-                variant="outlined"
-                size="small"
-                disabled={saving}
-                fullWidth
-              >
-                Add Item
-              </Button>
-            </Paper>
-          )}
-
-          {/* Show read-only invoice items when editing */}
-          {selectedInvoice && (
-            <Paper
-              elevation={2}
-              sx={{
-                p: 2,
-                mt: 2,
-                borderRadius: 1,
-                backgroundColor: '#fafafa',
-                width: '100%',
-                boxSizing: 'border-box',
-              }}
-            >
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: '#1976d2' }}>
-                Invoice Items (Read Only)
-              </Typography>
-              {selectedInvoice.items?.map((item, index) => (
-                <Box
-                  key={index}
-                  sx={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 1,
-                    mb: 2,
-                    p: 2,
-                    border: '1px solid #e0e0e0',
-                    borderRadius: 1,
-                    backgroundColor: '#ffffff',
-                  }}
+                        inputProps={{ min: 0, step: 0.01 }}
+                        helperText={
+                          item.productId && item.warehouseId && item.quantity
+                            ? `Available: ${getAvailableQuantity(item.productId, item.warehouseId)}`
+                            : ''
+                        }
+                        error={
+                          !!(
+                            item.productId &&
+                            item.warehouseId &&
+                            item.quantity &&
+                            Number(item.quantity) >
+                              getAvailableQuantity(item.productId, item.warehouseId)
+                          )
+                        }
+                      />
+                      {items.length > 1 && (
+                        <IconButton
+                          onClick={() => handleRemoveItem(index)}
+                          color="error"
+                          size="small"
+                          disabled={saving}
+                          sx={{ alignSelf: 'center' }}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      )}
+                    </Box>
+                  );
+                })}
+                <Button
+                  startIcon={<AddIcon />}
+                  onClick={handleAddItem}
+                  variant="outlined"
+                  size="small"
+                  disabled={saving}
+                  fullWidth
                 >
-                  <TextField
-                    label="Product"
-                    value={item.product?.name || '-'}
-                    disabled
-                    size="small"
-                    fullWidth
-                  />
-                  <TextField
-                    label="Quantity"
-                    value={item.quantity || '-'}
-                    disabled
-                    size="small"
-                    fullWidth
-                  />
-                  <TextField
-                    label="Unit"
-                    value={item.unit || '-'}
-                    disabled
-                    size="small"
-                    fullWidth
-                  />
-                  <TextField
-                    label="Price Per Unit"
-                    value={`$${Number(item.unitPrice || 0).toFixed(2)}`}
-                    disabled
-                    size="small"
-                    fullWidth
-                  />
-                  <TextField
-                    label="Item Total"
-                    value={`$${(Number(item.quantity || 0) * Number(item.unitPrice || 0)).toFixed(2)}`}
-                    disabled
-                    size="small"
-                    fullWidth
-                  />
+                  Add Item
+                </Button>
+              </Box>
+
+              {/* Submit Buttons */}
+              <Box sx={{ width: '100%', mt: 2 }}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={saving}
+                    sx={{
+                      flex: 1,
+                      backgroundColor: '#1976d2',
+                      ':hover': {
+                        backgroundColor: '#1565c0',
+                      },
+                    }}
+                  >
+                    {selectedInvoice ? 'Save' : 'Add'}
+                  </Button>
+
+                  {selectedInvoice && (
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      sx={{ flex: 1 }}
+                      onClick={handleCancel}
+                      disabled={saving}
+                    >
+                      Cancel
+                    </Button>
+                  )}
                 </Box>
-              ))}
-            </Paper>
-          )}
+              </Box>
+            </Box>
+          </Paper>
         </Box>
 
         {/* Right Side - Table (70%) */}

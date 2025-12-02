@@ -13,7 +13,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import axios from 'axios';
 import dayjs from 'dayjs';
-import CustomForm from '../components/CustomForm';
+import jsPDF from 'jspdf';
 import CustomTable from '../components/CustomTable';
 import CustomSearchFilter from '../components/CustomSearchFilter';
 import type { SearchOption, Column } from '../utils/types';
@@ -363,6 +363,207 @@ const Invoices = () => {
     );
   };
 
+  // Download Button Component (separate component to avoid React hooks issues)
+  const DownloadButton = ({ invoice }: { invoice: Invoice }) => {
+    return (
+      <Button
+        size="small"
+        variant="outlined"
+        color="primary"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleDownloadPDF(invoice, e);
+        }}
+        title="Download PDF"
+        sx={{ minWidth: 'auto', px: 1 }}
+      >
+        Download
+      </Button>
+    );
+  };
+
+  // Generate and download PDF
+  const handleDownloadPDF = async (invoice: Invoice, e?: React.MouseEvent) => {
+    e?.stopPropagation(); // Prevent row click
+
+    try {
+      // Fetch full invoice details if needed
+      const fullInvoice = await invoiceService.findOne(invoice.id);
+
+      // Create PDF
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 20;
+      let yPos = margin;
+
+      // Header
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('INVOICE', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+
+      // Invoice Number and Date
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Invoice #: ${fullInvoice.invoiceNumber}`, margin, yPos);
+      if (fullInvoice.invoiceDate) {
+        const invoiceDate = dayjs(fullInvoice.invoiceDate).format('DD-MM-YYYY');
+        pdf.text(`Date: ${invoiceDate}`, pageWidth - margin, yPos, { align: 'right' });
+      }
+      yPos += 15;
+
+      // Customer Information
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Bill To:', margin, yPos);
+      yPos += 7;
+      pdf.setFont('helvetica', 'normal');
+      const customerName =
+        typeof fullInvoice.customer === 'object'
+          ? fullInvoice.customer?.name
+          : fullInvoice.customer || 'N/A';
+      pdf.text(customerName, margin, yPos);
+      yPos += 7;
+      if (typeof fullInvoice.customer === 'object') {
+        if (fullInvoice.customer.phone) {
+          pdf.text(`Phone: ${fullInvoice.customer.phone}`, margin, yPos);
+          yPos += 7;
+        }
+        if (fullInvoice.customer.email) {
+          pdf.text(`Email: ${fullInvoice.customer.email}`, margin, yPos);
+          yPos += 7;
+        }
+      }
+      yPos += 10;
+
+      // Items Table Header
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      pdf.text('Item', margin, yPos);
+      pdf.text('Quantity', margin + 50, yPos);
+      pdf.text('Unit', margin + 80, yPos);
+      pdf.text('Unit Price', margin + 100, yPos);
+      pdf.text('Total', pageWidth - margin, yPos, { align: 'right' });
+      yPos += 7;
+
+      // Draw line
+      pdf.setLineWidth(0.5);
+      pdf.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 5;
+
+      // Items
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      if (fullInvoice.items && fullInvoice.items.length > 0) {
+        fullInvoice.items.forEach(
+          (item: {
+            id: number;
+            product: { id: number; name: string } | string;
+            quantity: number;
+            unit: string;
+            unitPrice: number;
+          }) => {
+            if (yPos > 250) {
+              // New page if needed
+              pdf.addPage();
+              yPos = margin;
+            }
+            const productName =
+              typeof item.product === 'object' ? item.product?.name : item.product || 'N/A';
+            const quantity = item.quantity || 0;
+            const unit = item.unit || '';
+            const unitPrice = Number(item.unitPrice || 0);
+            const itemTotal = quantity * unitPrice;
+
+            // Truncate product name if too long
+            const maxWidth = 45;
+            const truncatedName =
+              pdf.getTextWidth(productName) > maxWidth
+                ? productName.substring(0, 20) + '...'
+                : productName;
+
+            pdf.text(truncatedName, margin, yPos);
+            pdf.text(quantity.toString(), margin + 50, yPos);
+            pdf.text(unit, margin + 80, yPos);
+            pdf.text(unitPrice.toFixed(2), margin + 100, yPos);
+            pdf.text(itemTotal.toFixed(2), pageWidth - margin, yPos, { align: 'right' });
+            yPos += 7;
+          },
+        );
+      } else {
+        pdf.text('No items', margin, yPos);
+        yPos += 7;
+      }
+
+      yPos += 5;
+      pdf.setLineWidth(0.5);
+      pdf.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 10;
+
+      // Totals
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      const total = Number(fullInvoice.total || 0);
+      const paidAmount = Number(fullInvoice.paidAmount || 0);
+      const remaining = total - paidAmount;
+
+      pdf.text(`Subtotal: ${total.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+      yPos += 8;
+      pdf.text(`Paid: ${paidAmount.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+      yPos += 8;
+      pdf.text(`Remaining: ${remaining.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+      yPos += 10;
+
+      // Status
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      const status = fullInvoice.status || 'pending';
+      pdf.text(`Status: ${status.charAt(0).toUpperCase() + status.slice(1)}`, margin, yPos);
+
+      // Notes
+      if (fullInvoice.notes) {
+        yPos += 10;
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Notes:', margin, yPos);
+        yPos += 7;
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        const notesLines = pdf.splitTextToSize(fullInvoice.notes, pageWidth - 2 * margin);
+        notesLines.forEach((line: string) => {
+          if (yPos > 250) {
+            pdf.addPage();
+            yPos = margin;
+          }
+          pdf.text(line, margin, yPos);
+          yPos += 7;
+        });
+      }
+
+      // Print Date at the bottom - add after all content
+      yPos += 20; // Add some space before print date
+      const dateStr = dayjs().format('DD-MM-YYYY');
+      const timeStr = dayjs().format('hh:mm A');
+      const printDate = `${dateStr} (${timeStr})`;
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.setTextColor(0, 0, 0); // Black color to make it visible
+
+      // Check if we need a new page for the print date
+      if (yPos > 270) {
+        pdf.addPage();
+        yPos = margin + 20;
+      }
+
+      pdf.text(`Bill printed at : ${printDate}`, pageWidth / 2, yPos, { align: 'center' });
+
+      // Save PDF
+      const fileName = `Invoice_${fullInvoice.invoiceNumber}_${dayjs().format('YYYY-MM-DD')}.pdf`;
+      pdf.save(fileName);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      alert('Failed to generate PDF. Please try again.');
+    }
+  };
+
   // Table columns
   const columns: Column<Invoice>[] = [
     { key: 'invoiceNumber', label: 'Invoice #' },
@@ -420,6 +621,11 @@ const Invoices = () => {
         }
         return '-';
       },
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row: Invoice) => <DownloadButton invoice={row} />,
     },
   ];
 

@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import axios from 'axios';
-import dayjs from 'dayjs';
+import dayjs, { Dayjs } from 'dayjs';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import CustomForm from '../components/CustomForm';
+
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 import CustomTable from '../components/CustomTable';
 import CustomSearchFilter from '../components/CustomSearchFilter';
 import type {
@@ -16,6 +21,11 @@ import type {
 } from '../utils/types';
 import { API_ENDPOINTS } from '../utils/constants';
 
+interface DateRange {
+  start: Dayjs | null;
+  end: Dayjs | null;
+}
+
 const API_BASE = API_ENDPOINTS.PRODUCTS;
 
 const Products = () => {
@@ -26,16 +36,24 @@ const Products = () => {
   const [saving, setSaving] = useState(false);
   const [loadingDropdowns, setLoadingDropdowns] = useState(false);
   const [searchKey, setSearchKey] = useState<string>('name');
-  const [searchValue, setSearchValue] = useState<string>('');
+  const [searchValue, setSearchValue] = useState<string | Dayjs | null | DateRange>('');
   const [fabrics, setFabrics] = useState<Fiber[]>([]);
   const [colors, setColors] = useState<Color[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
   // Search options based on backend fields
-  const searchOptions: SearchOption[] = [
-    { label: 'By Name', value: 'name' },
-    { label: 'By ID', value: 'id' },
-  ];
+  const searchOptions: SearchOption[] = useMemo(
+    () => [
+      { label: 'By Name', value: 'name', type: 'text' },
+      { label: 'By ID', value: 'id', type: 'text' },
+      { label: 'By Fabric', value: 'fabric', type: 'text' },
+      { label: 'By Color', value: 'color', type: 'text' },
+      { label: 'By Unit', value: 'unit', type: 'text' },
+      { label: 'By Warehouse', value: 'warehouses', type: 'text' },
+      { label: 'By Date', value: 'updatedAt', type: 'dateRange' },
+    ],
+    [],
+  );
 
   // ✅ Fetch All Products
   const fetchProducts = async () => {
@@ -93,18 +111,106 @@ const Products = () => {
 
   // Filter products based on search
   useEffect(() => {
-    if (!searchValue.trim()) {
-      setFilteredRows(rows);
-      return;
+    const selectedOption = searchOptions.find((opt) => opt.value === searchKey);
+    const isDateRange = selectedOption?.type === 'dateRange';
+
+    // Check if search value is empty
+    if (isDateRange) {
+      const dateRange = searchValue as DateRange;
+      if (
+        !dateRange ||
+        typeof dateRange !== 'object' ||
+        !('start' in dateRange) ||
+        !('end' in dateRange)
+      ) {
+        setFilteredRows(rows);
+        return;
+      }
+      // If both start and end are null, show all rows
+      if (!dateRange.start && !dateRange.end) {
+        setFilteredRows(rows);
+        return;
+      }
+    } else {
+      // For non-date searches, ensure searchValue is a string
+      if (typeof searchValue !== 'string') {
+        setFilteredRows(rows);
+        return;
+      }
+      if (!searchValue || !searchValue.trim()) {
+        setFilteredRows(rows);
+        return;
+      }
     }
 
     const filtered = rows.filter((item) => {
-      const fieldValue = String(item[searchKey as keyof Product] || '').toLowerCase();
-      return fieldValue.includes(searchValue.toLowerCase());
+      if (isDateRange) {
+        const dateRange = searchValue as DateRange;
+        if (!dateRange || typeof dateRange !== 'object' || !('start' in dateRange)) {
+          return false;
+        }
+        
+        const updatedAt = item.updatedAt ? dayjs(item.updatedAt) : null;
+        if (!updatedAt) return false;
+
+        const endDate = dateRange.end;
+        const startDate = dateRange.start;
+
+        // If both dates are selected
+        if (startDate && endDate) {
+          return (
+            updatedAt.isSameOrAfter(startDate.startOf('day')) &&
+            updatedAt.isSameOrBefore(endDate.endOf('day'))
+          );
+        } 
+        // If only start date is selected - filter from start date onwards
+        else if (startDate) {
+          return updatedAt.isSameOrAfter(startDate.startOf('day'));
+        } 
+        // If only end date is selected - filter up to end date (default to today if not set)
+        else if (endDate) {
+          return updatedAt.isSameOrBefore(endDate.endOf('day'));
+        }
+        // If neither is selected, don't filter (shouldn't reach here due to earlier check)
+        return true;
+      } else {
+        // Ensure searchValue is a string for text searches
+        if (typeof searchValue !== 'string') {
+          return false;
+        }
+        const searchStr = searchValue.toLowerCase();
+        let fieldValue = '';
+
+        if (searchKey === 'fabric') {
+          fieldValue = item.fabric
+            ? typeof item.fabric === 'string'
+              ? item.fabric
+              : item.fabric.name
+            : '';
+        } else if (searchKey === 'color') {
+          fieldValue = item.color
+            ? typeof item.color === 'string'
+              ? item.color
+              : item.color.name
+            : '';
+        } else if (searchKey === 'warehouses') {
+          if (item.productWarehouses && item.productWarehouses.length > 0) {
+            fieldValue = item.productWarehouses
+              .map((pw) => pw?.warehouse?.name || '')
+              .join(', ');
+          }
+        } else if (searchKey === 'unit') {
+          fieldValue = item.unit || '';
+        } else {
+          fieldValue = String(item[searchKey as keyof Product] || '');
+        }
+
+        return fieldValue.toLowerCase().includes(searchStr);
+      }
     });
 
     setFilteredRows(filtered);
-  }, [searchValue, searchKey, rows]);
+  }, [searchValue, searchKey, rows, searchOptions]);
 
   // ✅ Add or Update Product
   const handleAddOrUpdate = async (data: Record<string, string | number>) => {
@@ -197,6 +303,24 @@ const Products = () => {
   const handleCancel = () => {
     setSelectedItem(null);
   };
+
+  // Reset search value when search key changes
+  useEffect(() => {
+    const selectedOption = searchOptions.find((opt) => opt.value === searchKey);
+    if (selectedOption?.type === 'dateRange') {
+      // Initialize with both null - user needs to select dates to filter
+      const currentValue = searchValue as DateRange;
+      if (!currentValue || typeof currentValue !== 'object' || !('start' in currentValue)) {
+        setSearchValue({ start: null, end: null });
+      }
+    } else {
+      // Reset to empty string for text searches
+      if (typeof searchValue !== 'string') {
+        setSearchValue('');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchKey]);
 
   const columns: Column<Product>[] = [
     { key: 'id', label: 'ID' },

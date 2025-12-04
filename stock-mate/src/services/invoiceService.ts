@@ -8,7 +8,7 @@ export interface InvoiceItem {
 }
 
 export interface CreateInvoiceData {
-  invoiceNumber: string;
+  invoiceNumber?: string; // Optional - backend will generate if not provided
   customerId: number;
   warehouseId: number;
   invoiceDate?: string;

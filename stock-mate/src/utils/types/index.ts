@@ -8,7 +8,7 @@ export interface Column<T = Record<string, unknown>> {
 export interface SearchOption {
   label: string;
   value: string;
-  type?: 'text' | 'date';
+  type?: 'text' | 'date' | 'dateRange';
 }
 
 // Entity Types - Matching Backend Schema

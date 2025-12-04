@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, TextField, Button, Paper, MenuItem, Typography, CircularProgress } from '@mui/material';
+import { Box, TextField, Button, Paper, Typography, CircularProgress, Autocomplete } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs, { Dayjs } from 'dayjs';
 import type { FormField } from '../utils/types';
@@ -222,6 +222,7 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = 
                 {isDate ? (
                   <DatePicker
                     label={field.label}
+                    format="DD-MM-YYYY"
                     value={
                       formData[field.key]
                         ? dayjs.isDayjs(formData[field.key])
@@ -242,11 +243,65 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = 
                       },
                     }}
                   />
+                ) : isSelect ? (
+                  <Autocomplete
+                    options={field.options || []}
+                    getOptionLabel={(option) => {
+                      if (typeof option === 'object' && 'id' in option) {
+                        return option.name;
+                      }
+                      return String(option);
+                    }}
+                    isOptionEqualToValue={(option, value) => {
+                      if (!value) return false;
+                      if (typeof option === 'object' && 'id' in option) {
+                        if (typeof value === 'object' && 'id' in value) {
+                          return String(option.id) === String(value.id);
+                        }
+                        return String(option.id) === String(value);
+                      }
+                      return String(option) === String(value);
+                    }}
+                    value={
+                      field.options?.find((opt) => {
+                        if (typeof opt === 'object' && 'id' in opt) {
+                          return String(opt.id) === String(formData[field.key]);
+                        }
+                        return String(opt) === String(formData[field.key]);
+                      }) || null
+                    }
+                    onChange={(_, newValue) => {
+                      const value =
+                        typeof newValue === 'object' && newValue && 'id' in newValue
+                          ? newValue.id
+                          : newValue || '';
+                      handleChange(field.key, value);
+                    }}
+                    filterOptions={(options, { inputValue }) => {
+                      return options.filter((option) => {
+                        const label = typeof option === 'object' && 'id' in option
+                          ? option.name
+                          : String(option);
+                        return label.toLowerCase().startsWith(inputValue.toLowerCase());
+                      });
+                    }}
+                    disabled={loading || field.disabled === true}
+                    size="small"
+                    fullWidth
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label={field.label}
+                        required={field.required === true}
+                        error={!!errors[field.key]}
+                        helperText={errors[field.key] || ' '}
+                      />
+                    )}
+                  />
                 ) : (
                   <TextField
-                    select={isSelect}
                     label={field.label}
-                    type={isSelect ? undefined : field.type || 'text'}
+                    type={field.type || 'text'}
                     value={formData[field.key] ?? ''}
                     onChange={(e) => handleChange(field.key, e.target.value)}
                     error={!!errors[field.key]}
@@ -254,27 +309,9 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = 
                     size="small"
                     fullWidth
                     required={field.required === true}
-                    disabled={loading}
+                    disabled={loading || field.disabled === true}
                     sx={{ width: '100%' }}
-                  >
-                    {isSelect &&
-                      field.options?.map((option) => {
-                        // Handle object options (id/name structure)
-                        if (hasObjectOptions && typeof option === 'object' && 'id' in option) {
-                          return (
-                            <MenuItem key={option.id} value={option.id}>
-                              {option.name}
-                            </MenuItem>
-                          );
-                        }
-                        // Handle string options
-                        return (
-                          <MenuItem key={option as string} value={option as string}>
-                            {option as string}
-                          </MenuItem>
-                        );
-                      })}
-                  </TextField>
+                  />
                 )}
               </Box>
             );

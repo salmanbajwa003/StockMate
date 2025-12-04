@@ -1,19 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
   Paper,
   TextField,
   Button,
-  MenuItem,
   IconButton,
   Chip,
+  Autocomplete,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import axios from 'axios';
-import dayjs from 'dayjs';
+import dayjs, { Dayjs } from 'dayjs';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import jsPDF from 'jspdf';
+
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 import CustomTable from '../components/CustomTable';
 import CustomSearchFilter from '../components/CustomSearchFilter';
 import type { SearchOption, Column } from '../utils/types';
@@ -24,10 +29,13 @@ import { productService } from '../services/productService';
 import type { Product } from '../utils/types';
 import { customerService } from '../services/customerService';
 import type { Customer } from '../services/customerService';
-import { warehouseService } from '../services/warehouseService';
-import type { Warehouse } from '../services/warehouseService';
 
 const API_URL = API_ENDPOINTS.INVOICES;
+
+interface DateRange {
+  start: Dayjs | null;
+  end: Dayjs | null;
+}
 
 interface InvoiceItemForm {
   warehouseId: string;
@@ -42,17 +50,16 @@ const Invoices = () => {
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [searchKey, setSearchKey] = useState<string>('invoiceNumber');
-  const [searchValue, setSearchValue] = useState<string>('');
+  const [searchValue, setSearchValue] = useState<string | Dayjs | null | DateRange>('');
+  const [dateFilter, setDateFilter] = useState<string>('all'); // 'all', 'today', 'thisMonth', 'previousMonth'
   const [totalAmount, setTotalAmount] = useState<string>('0.00');
 
   // Form state for invoice details
   const [formData, setFormData] = useState<Record<string, string | number>>({
-    invoiceNumber: '',
     customerId: '',
     paidAmount: '',
     notes: '',
@@ -64,12 +71,17 @@ const Invoices = () => {
   ]);
 
   // Search options
-  const searchOptions: SearchOption[] = [
-    { label: 'By Invoice Number', value: 'invoiceNumber' },
-    { label: 'By Customer', value: 'customerName' },
-    { label: 'By Warehouse', value: 'warehouseName' },
-    { label: 'By Status', value: 'status' },
-  ];
+  const searchOptions: SearchOption[] = useMemo(
+    () => [
+      { label: 'By Invoice Number', value: 'invoiceNumber', type: 'text' },
+      { label: 'By Customer', value: 'customerName', type: 'text' },
+      { label: 'By Product Name', value: 'productName', type: 'text' },
+      { label: 'By Warehouse', value: 'warehouseName', type: 'text' },
+      { label: 'By Status', value: 'status', type: 'text' },
+      { label: 'By Date', value: 'invoiceDate', type: 'dateRange' },
+    ],
+    [],
+  );
 
   // Fetch all data
   const fetchInvoices = async () => {
@@ -87,14 +99,12 @@ const Invoices = () => {
 
   const fetchDropdowns = async () => {
     try {
-      const [productsData, customersData, warehousesData] = await Promise.all([
+      const [productsData, customersData] = await Promise.all([
         productService.findAll(),
         customerService.findAll(),
-        warehouseService.findAll(),
       ]);
       setProducts(productsData);
       setCustomers(customersData);
-      setWarehouses(warehousesData);
     } catch (err) {
       console.error('Error fetching dropdown data:', err);
     }
@@ -105,51 +115,129 @@ const Invoices = () => {
     fetchDropdowns();
   }, []);
 
-  // Filter invoices based on search
+  // Reset searchValue when searchKey changes
   useEffect(() => {
-    if (!searchValue.trim()) {
-      setFilteredInvoices(invoices);
-      return;
+    const selectedOption = searchOptions.find((opt) => opt.value === searchKey);
+    const isDateRange = selectedOption?.type === 'dateRange';
+
+    if (isDateRange) {
+      setSearchValue({ start: null, end: null });
+    } else {
+      setSearchValue('');
+    }
+  }, [searchKey, searchOptions]);
+
+  // Filter invoices based on date filter and search
+  useEffect(() => {
+    let filtered = [...invoices];
+
+    // Apply date filter first (predefined date filters)
+    if (dateFilter !== 'all') {
+      const today = dayjs();
+      filtered = filtered.filter((invoice) => {
+        if (!invoice.invoiceDate) return false;
+        const invoiceDate = dayjs(invoice.invoiceDate);
+
+        switch (dateFilter) {
+          case 'today':
+            return invoiceDate.isSame(today, 'day');
+          case 'thisMonth':
+            return invoiceDate.isSame(today, 'month') && invoiceDate.isSame(today, 'year');
+          case 'previousMonth': {
+            const previousMonth = today.subtract(1, 'month');
+            return (
+              invoiceDate.isSame(previousMonth, 'month') &&
+              invoiceDate.isSame(previousMonth, 'year')
+            );
+          }
+          default:
+            return true;
+        }
+      });
     }
 
-    const filtered = invoices.filter((invoice) => {
-      let fieldValue = '';
-      if (searchKey === 'customerName') {
-        fieldValue = invoice.customer?.name || '';
-      } else if (searchKey === 'warehouseName') {
-        fieldValue = invoice.warehouse?.name || '';
-      } else if (searchKey === 'status') {
-        fieldValue = invoice.status || '';
-      } else {
-        fieldValue = String(invoice[searchKey as keyof Invoice] || '').toLowerCase();
+    // Apply search filter if search value exists
+    const selectedOption = searchOptions.find((opt) => opt.value === searchKey);
+    const isDateRange = selectedOption?.type === 'dateRange';
+
+    if (isDateRange) {
+      // Handle date range search
+      const dateRange = searchValue as DateRange;
+      if (
+        dateRange &&
+        typeof dateRange === 'object' &&
+        'start' in dateRange &&
+        'end' in dateRange &&
+        (dateRange.start || dateRange.end)
+      ) {
+        filtered = filtered.filter((invoice) => {
+          if (!invoice.invoiceDate) return false;
+          const invoiceDate = dayjs(invoice.invoiceDate);
+          const startDate = dateRange.start;
+          const endDate = dateRange.end || dayjs(); // Default to today if end date not selected
+
+          if (startDate && endDate) {
+            return (
+              invoiceDate.isSameOrAfter(startDate, 'day') &&
+              invoiceDate.isSameOrBefore(endDate, 'day')
+            );
+          } else if (startDate) {
+            return invoiceDate.isSameOrAfter(startDate, 'day');
+          } else if (endDate) {
+            return invoiceDate.isSameOrBefore(endDate, 'day');
+          }
+          return true;
+        });
       }
-      return fieldValue.toLowerCase().includes(searchValue.toLowerCase());
-    });
+    } else {
+      // Handle text search
+      if (typeof searchValue === 'string' && searchValue.trim()) {
+        filtered = filtered.filter((invoice) => {
+          let fieldValue = '';
+          if (searchKey === 'customerName') {
+            fieldValue =
+              typeof invoice.customer === 'object'
+                ? invoice.customer?.name || ''
+                : invoice.customer || '';
+          } else if (searchKey === 'warehouseName') {
+            fieldValue =
+              typeof invoice.warehouse === 'object'
+                ? invoice.warehouse?.name || ''
+                : invoice.warehouse || '';
+          } else if (searchKey === 'productName') {
+            // Get all product names from invoice items
+            if (invoice.items && invoice.items.length > 0) {
+              const productNames = invoice.items
+                .map((item) => {
+                  if (typeof item.product === 'object' && item.product?.name) {
+                    return item.product.name;
+                  }
+                  return '';
+                })
+                .filter(Boolean)
+                .join(' ');
+              fieldValue = productNames;
+            } else {
+              fieldValue = '';
+            }
+          } else if (searchKey === 'status') {
+            fieldValue = invoice.status || '';
+          } else {
+            fieldValue = String(invoice[searchKey as keyof Invoice] || '').toLowerCase();
+          }
+          return fieldValue.toLowerCase().includes(searchValue.toLowerCase());
+        });
+      }
+    }
 
     setFilteredInvoices(filtered);
-  }, [searchValue, searchKey, invoices]);
+  }, [searchValue, searchKey, invoices, dateFilter, searchOptions]);
 
-  // Get product warehouse unit
-  const getProductWarehouseUnit = (productId: string, itemWarehouseId: string): string | null => {
-    if (!productId || !itemWarehouseId) return null;
+  // Get product weight
+  const getProductWeight = (productId: string): number => {
+    if (!productId) return 0;
     const product = products.find((p) => p.id === Number(productId));
-    if (!product) return null;
-    const productWarehouse = product.productWarehouses?.find(
-      (pw) => pw.warehouse?.id === Number(itemWarehouseId),
-    );
-    return productWarehouse?.unit || null;
-  };
-
-  // Get available quantity for a product in a warehouse
-  const getAvailableQuantity = (productId: string, itemWarehouseId: string): number => {
-    if (!productId || !itemWarehouseId) return 0;
-    const product = products.find((p) => p.id === Number(productId));
-
-    if (!product) return 0;
-    const productWarehouse = product.productWarehouses?.find(
-      (pw) => pw.warehouse?.id === Number(itemWarehouseId),
-    );
-    return productWarehouse?.quantity ? Number(productWarehouse.quantity) : 0;
+    return product?.weight ? Number(product.weight) : 0;
   };
 
   // Calculate item total
@@ -164,24 +252,25 @@ const Invoices = () => {
     const newItems = [...items];
     const currentItem = newItems[index];
 
-    // If warehouse is changed, reset product and unit
-    if (field === 'warehouseId') {
+    // If product is changed, reset warehouse, unit, and quantity, then auto-set unit from product
+    if (field === 'productId') {
+      const product = products.find((p) => p.id === Number(value));
+      const productUnit = product?.unit || '';
       newItems[index] = {
         ...currentItem,
-        warehouseId: value,
-        productId: '',
-        unit: '',
+        productId: value,
+        warehouseId: '',
+        unit: productUnit, // Auto-fill from product.unit
         quantity: '',
       };
     }
-    // If product is changed, auto-set the unit to match product warehouse unit
-    else if (field === 'productId' && value && currentItem.warehouseId) {
-      const productUnit = getProductWarehouseUnit(value, currentItem.warehouseId);
-      if (productUnit) {
-        newItems[index] = { ...currentItem, [field]: value, unit: productUnit };
-      } else {
-        newItems[index] = { ...currentItem, [field]: value };
-      }
+    // If warehouse is changed, reset quantity (but keep product and unit)
+    else if (field === 'warehouseId') {
+      newItems[index] = {
+        ...currentItem,
+        warehouseId: value,
+        quantity: '', // Reset quantity when warehouse changes
+      };
     } else {
       newItems[index] = { ...currentItem, [field]: value };
     }
@@ -245,17 +334,17 @@ const Invoices = () => {
         return;
       }
 
-      // Validate quantities don't exceed available stock
+      // Validate quantities don't exceed product weight
       for (const item of items) {
-        const availableQty = getAvailableQuantity(item.productId, item.warehouseId);
+        const productWeight = getProductWeight(item.productId);
         const requestedQty = Number(item.quantity);
         const product = products.find((p) => p.id === Number(item.productId));
 
-        if (requestedQty > availableQty) {
+        if (productWeight > 0 && requestedQty > productWeight) {
           alert(
-            `Quantity exceeds available stock for ${
+            `Quantity exceeds product weight for ${
               product?.name || 'product'
-            }. Available: ${availableQty}, Requested: ${requestedQty}`,
+            }. Weight: ${productWeight}, Requested: ${requestedQty}`,
           );
           return;
         }
@@ -270,7 +359,6 @@ const Invoices = () => {
       }
 
       const invoiceData = {
-        invoiceNumber: String(formData.invoiceNumber),
         customerId: Number(formData.customerId),
         warehouseId: Number(firstItemWarehouseId),
         paidAmount: formData.paidAmount ? Number(formData.paidAmount) : 0,
@@ -330,7 +418,6 @@ const Invoices = () => {
 
     // Update form data
     setFormData({
-      invoiceNumber: invoice.invoiceNumber || '',
       customerId: typeof invoice.customer === 'object' ? invoice.customer?.id || '' : '',
       paidAmount: invoice.paidAmount || 0,
       notes: invoice.notes || '',
@@ -348,19 +435,24 @@ const Invoices = () => {
     setItems(emptyItems);
     setTotalAmount('0.00');
     setFormData({
-      invoiceNumber: '',
       customerId: '',
       paidAmount: '',
       notes: '',
     });
   };
 
-  // Get available products for a specific warehouse
-  const getAvailableProducts = (warehouseId: string) => {
-    if (!warehouseId) return [];
-    return products.filter((product) =>
-      product.productWarehouses?.some((pw) => pw.warehouse?.id === Number(warehouseId)),
-    );
+  // Get available warehouses for a specific product (with quantities)
+  const getAvailableWarehouses = (productId: string) => {
+    if (!productId) return [];
+    const product = products.find((p) => p.id === Number(productId));
+    if (!product || !product.productWarehouses) return [];
+
+    return product.productWarehouses
+      .filter((pw) => pw.warehouse) // Only warehouses that exist
+      .map((pw) => ({
+        warehouse: pw.warehouse!,
+        quantity: pw.quantity || 0,
+      }));
   };
 
   // Download Button Component (separate component to avoid React hooks issues)
@@ -566,12 +658,30 @@ const Invoices = () => {
 
   // Table columns
   const columns: Column<Invoice>[] = [
-    { key: 'invoiceNumber', label: 'Invoice #' },
+    { key: 'id', label: 'Invoice ID' },
     {
       key: 'customer',
       label: 'Customer',
       render: (row: Invoice) =>
         typeof row.customer === 'object' ? row.customer?.name : row.customer || '-',
+    },
+    {
+      key: 'productName',
+      label: 'Product Name',
+      render: (row: Invoice) => {
+        if (row.items && row.items.length > 0) {
+          const productNames = row.items
+            .map((item) => {
+              if (typeof item.product === 'object' && item.product?.name) {
+                return item.product.name;
+              }
+              return null;
+            })
+            .filter(Boolean);
+          return productNames.length > 0 ? productNames.join(', ') : '-';
+        }
+        return '-';
+      },
     },
     {
       key: 'warehouse',
@@ -631,7 +741,6 @@ const Invoices = () => {
 
   // Form fields for CustomForm - show all fields for both create and update
   const formFields = [
-    { key: 'invoiceNumber', label: 'Invoice Number', required: true },
     {
       key: 'customerId',
       label: 'Customer',
@@ -640,7 +749,7 @@ const Invoices = () => {
       options: customers.map((customer) => ({ id: customer.id, name: customer.name })),
     },
     { key: 'paidAmount', label: 'Paid Amount', type: 'number', required: false },
-    { key: 'notes', label: 'Notes', required: false },
+    { key: 'notes', label: 'Notes', type: 'textarea', required: false },
   ];
 
   return (
@@ -691,51 +800,94 @@ const Invoices = () => {
               <Box sx={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                 {formFields.map((field) => {
                   const isSelect = field.options && field.options.length > 0;
+                  const isTextarea = field.type === 'textarea';
                   const fieldValue = formData[field.key] ?? '';
 
                   return (
                     <Box
                       key={field.key}
                       sx={{
-                        width: { xs: '100%', sm: 'calc(50% - 8px)' },
+                        width: { xs: '100%', sm: isTextarea ? '100%' : 'calc(50% - 8px)' },
                         boxSizing: 'border-box',
                         flexGrow: 0,
                         flexShrink: 0,
                       }}
                     >
-                      <TextField
-                        name={field.key}
-                        select={isSelect}
-                        label={field.label}
-                        type={isSelect ? undefined : field.type || 'text'}
-                        value={fieldValue}
-                        onChange={(e) => {
-                          const value =
-                            field.type === 'number' ? Number(e.target.value) || 0 : e.target.value;
-                          setFormData((prev) => ({ ...prev, [field.key]: value }));
-                        }}
-                        required={field.required === true}
-                        size="small"
-                        fullWidth
-                        disabled={saving}
-                        sx={{ width: '100%' }}
-                      >
-                        {isSelect &&
-                          field.options?.map((option) => {
+                      {isSelect ? (
+                        <Autocomplete
+                          options={field.options || []}
+                          getOptionLabel={(option) => {
                             if (typeof option === 'object' && 'id' in option) {
-                              return (
-                                <MenuItem key={option.id} value={option.id}>
-                                  {option.name}
-                                </MenuItem>
-                              );
+                              return option.name;
                             }
-                            return (
-                              <MenuItem key={option as string} value={option as string}>
-                                {option as string}
-                              </MenuItem>
-                            );
-                          })}
-                      </TextField>
+                            return String(option);
+                          }}
+                          isOptionEqualToValue={(option, value) => {
+                            if (typeof option === 'object' && 'id' in option) {
+                              if (typeof value === 'object' && 'id' in value) {
+                                return option.id === value.id;
+                              }
+                              return option.id === value;
+                            }
+                            return option === value;
+                          }}
+                          value={
+                            field.options?.find((opt) => {
+                              if (typeof opt === 'object' && 'id' in opt) {
+                                return opt.id === fieldValue;
+                              }
+                              return opt === fieldValue;
+                            }) || null
+                          }
+                          onChange={(_, newValue) => {
+                            const value =
+                              typeof newValue === 'object' && newValue && 'id' in newValue
+                                ? newValue.id
+                                : newValue || '';
+                            setFormData((prev) => ({ ...prev, [field.key]: value }));
+                          }}
+                          filterOptions={(options, { inputValue }) => {
+                            return options.filter((option) => {
+                              const label =
+                                typeof option === 'object' && 'id' in option
+                                  ? option.name
+                                  : String(option);
+                              return label.toLowerCase().startsWith(inputValue.toLowerCase());
+                            });
+                          }}
+                          disabled={saving}
+                          size="small"
+                          fullWidth
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label={field.label}
+                              required={field.required === true}
+                            />
+                          )}
+                        />
+                      ) : (
+                        <TextField
+                          name={field.key}
+                          multiline={isTextarea}
+                          rows={isTextarea ? 4 : undefined}
+                          label={field.label}
+                          type={isTextarea ? undefined : field.type || 'text'}
+                          value={fieldValue}
+                          onChange={(e) => {
+                            const value =
+                              field.type === 'number'
+                                ? Number(e.target.value) || 0
+                                : e.target.value;
+                            setFormData((prev) => ({ ...prev, [field.key]: value }));
+                          }}
+                          required={field.required === true}
+                          size="small"
+                          fullWidth
+                          disabled={saving}
+                          sx={{ width: '100%' }}
+                        />
+                      )}
                     </Box>
                   );
                 })}
@@ -774,7 +926,7 @@ const Invoices = () => {
                   Invoice Items
                 </Typography>
                 {items.map((item, index) => {
-                  const availableProductsForItem = getAvailableProducts(item.warehouseId);
+                  const availableWarehousesForItem = getAvailableWarehouses(item.productId);
                   return (
                     <Box
                       key={index}
@@ -789,50 +941,65 @@ const Invoices = () => {
                         backgroundColor: '#ffffff',
                       }}
                     >
-                      <TextField
-                        select
-                        label="Warehouse"
-                        value={item.warehouseId}
-                        onChange={(e) => handleItemChange(index, 'warehouseId', e.target.value)}
-                        required
-                        size="small"
-                        fullWidth
+                      <Autocomplete
+                        options={products}
+                        getOptionLabel={(option) => option.name}
+                        isOptionEqualToValue={(option, value) => option.id === value.id}
+                        value={products.find((p) => p.id === Number(item.productId)) || null}
+                        onChange={(_, newValue) => {
+                          handleItemChange(index, 'productId', newValue ? String(newValue.id) : '');
+                        }}
+                        filterOptions={(options, { inputValue }) => {
+                          return options.filter((option) =>
+                            option.name.toLowerCase().startsWith(inputValue.toLowerCase()),
+                          );
+                        }}
                         disabled={saving}
-                      >
-                        {warehouses.length > 0 ? (
-                          warehouses.map((warehouse) => (
-                            <MenuItem key={warehouse.id} value={warehouse.id}>
-                              {warehouse.name}
-                            </MenuItem>
-                          ))
-                        ) : (
-                          <MenuItem value="" disabled>
-                            No warehouses available
-                          </MenuItem>
-                        )}
-                      </TextField>
-                      <TextField
-                        select
-                        label="Product"
-                        value={item.productId}
-                        onChange={(e) => handleItemChange(index, 'productId', e.target.value)}
-                        required
                         size="small"
                         fullWidth
-                        disabled={!item.warehouseId || saving}
-                      >
-                        {availableProductsForItem.length > 0 ? (
-                          availableProductsForItem.map((product) => (
-                            <MenuItem key={product.id} value={product.id}>
-                              {product.name}
-                            </MenuItem>
-                          ))
-                        ) : (
-                          <MenuItem value="" disabled>
-                            {item.warehouseId ? 'No products available' : 'Select warehouse first'}
-                          </MenuItem>
+                        renderInput={(params) => <TextField {...params} label="Product" required />}
+                      />
+                      <Autocomplete
+                        options={availableWarehousesForItem}
+                        getOptionLabel={(option) => `${option.warehouse.name} (${option.quantity})`}
+                        isOptionEqualToValue={(option, value) =>
+                          option.warehouse.id === value.warehouse.id
+                        }
+                        value={
+                          availableWarehousesForItem.find(
+                            (pw) => pw.warehouse.id === Number(item.warehouseId),
+                          ) || null
+                        }
+                        onChange={(_, newValue) => {
+                          handleItemChange(
+                            index,
+                            'warehouseId',
+                            newValue ? String(newValue.warehouse.id) : '',
+                          );
+                        }}
+                        filterOptions={(options, { inputValue }) => {
+                          return options.filter((option) =>
+                            option.warehouse.name
+                              .toLowerCase()
+                              .startsWith(inputValue.toLowerCase()),
+                          );
+                        }}
+                        disabled={!item.productId || saving}
+                        size="small"
+                        fullWidth
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Warehouse"
+                            required
+                            placeholder={
+                              item.productId
+                                ? 'No warehouses available for this product'
+                                : 'Select product first'
+                            }
+                          />
                         )}
-                      </TextField>
+                      />
                       <TextField
                         label="Quantity"
                         type="number"
@@ -843,53 +1010,56 @@ const Invoices = () => {
                         fullWidth
                         disabled={saving}
                         inputProps={{ min: 1, step: 0.01 }}
-                      />
-                      <TextField
-                        select
-                        label="Unit"
-                        value={
-                          item.unit ||
-                          (item.productId && item.warehouseId
-                            ? getProductWarehouseUnit(item.productId, item.warehouseId) || ''
-                            : '')
+                        helperText={
+                          item.productId
+                            ? `Product Weight: ${getProductWeight(item.productId) || 'N/A'}`
+                            : ''
                         }
-                        onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                        required
+                        error={
+                          !!(
+                            item.productId &&
+                            item.quantity &&
+                            getProductWeight(item.productId) > 0 &&
+                            Number(item.quantity) > getProductWeight(item.productId)
+                          )
+                        }
+                      />
+                      <Autocomplete
+                        options={(() => {
+                          if (!item.productId) return [];
+                          const product = products.find((p) => p.id === Number(item.productId));
+                          const productUnit = product?.unit || '';
+                          return productUnit ? [productUnit] : [];
+                        })()}
+                        getOptionLabel={(option) => String(option)}
+                        isOptionEqualToValue={(option, value) => option === value}
+                        value={item.unit || null}
+                        onChange={(_, newValue) => {
+                          handleItemChange(index, 'unit', newValue || '');
+                        }}
+                        filterOptions={(options, { inputValue }) => {
+                          return options.filter((option) =>
+                            String(option).toLowerCase().startsWith(inputValue.toLowerCase()),
+                          );
+                        }}
+                        disabled={!item.productId || saving}
                         size="small"
                         fullWidth
-                        disabled={!item.productId || !item.warehouseId || saving}
-                        helperText={
-                          item.productId && item.warehouseId
-                            ? getProductWarehouseUnit(item.productId, item.warehouseId)
-                              ? `Auto-selected: ${getProductWarehouseUnit(
-                                  item.productId,
-                                  item.warehouseId,
-                                )}`
-                              : 'Product not available in warehouse'
-                            : 'Select warehouse and product first'
-                        }
-                      >
-                        {(() => {
-                          const productUnit = getProductWarehouseUnit(
-                            item.productId,
-                            item.warehouseId,
-                          );
-                          if (productUnit) {
-                            return (
-                              <MenuItem key={productUnit} value={productUnit}>
-                                {productUnit}
-                              </MenuItem>
-                            );
-                          }
-                          return (
-                            <MenuItem value="" disabled>
-                              {!item.productId || !item.warehouseId
-                                ? 'Select warehouse and product first'
-                                : 'No unit available'}
-                            </MenuItem>
-                          );
-                        })()}
-                      </TextField>
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Unit"
+                            required
+                            helperText={
+                              item.productId
+                                ? item.unit
+                                  ? `Auto-selected from product: ${item.unit}`
+                                  : 'Unit will be auto-filled from product'
+                                : 'Select product first'
+                            }
+                          />
+                        )}
+                      />
                       <TextField
                         label="Price Per Unit"
                         type="number"
@@ -900,20 +1070,6 @@ const Invoices = () => {
                         fullWidth
                         disabled={saving}
                         inputProps={{ min: 0, step: 0.01 }}
-                        helperText={
-                          item.productId && item.warehouseId && item.quantity
-                            ? `Available: ${getAvailableQuantity(item.productId, item.warehouseId)}`
-                            : ''
-                        }
-                        error={
-                          !!(
-                            item.productId &&
-                            item.warehouseId &&
-                            item.quantity &&
-                            Number(item.quantity) >
-                              getAvailableQuantity(item.productId, item.warehouseId)
-                          )
-                        }
                       />
                       {items.length > 1 && (
                         <IconButton
@@ -985,6 +1141,122 @@ const Invoices = () => {
             flex: 1,
           }}
         >
+          {/* Date Filter Bar */}
+          <Paper
+            elevation={1}
+            sx={{
+              p: 0.25,
+              mb: 2,
+              borderRadius: 1.5,
+              backgroundColor: '#f8f9fa',
+              width: '100%',
+              display: 'flex',
+              border: '1px solid #e9ecef',
+              overflow: 'hidden',
+            }}
+          >
+            <Button
+              onClick={() => setDateFilter('all')}
+              sx={{
+                flex: 1,
+                py: 0.75,
+                px: 2,
+                minHeight: 36,
+                borderRadius: 0,
+                backgroundColor: dateFilter === 'all' ? '#1976d2' : 'transparent',
+                color: dateFilter === 'all' ? '#fff' : '#495057',
+                fontWeight: dateFilter === 'all' ? 700 : 600,
+                fontSize: '0.875rem',
+                textTransform: 'none',
+                borderRight: '1px solid #dee2e6',
+                transition: 'all 0.2s ease-in-out',
+                boxShadow: dateFilter === 'all' ? 'inset 0 2px 4px rgba(0,0,0,0.1)' : 'none',
+                '&:hover': {
+                  backgroundColor: dateFilter === 'all' ? '#1565c0' : '#e9ecef',
+                },
+                '&:first-of-type': {
+                  borderTopLeftRadius: 6,
+                  borderBottomLeftRadius: 6,
+                },
+              }}
+            >
+              All
+            </Button>
+            <Button
+              onClick={() => setDateFilter('today')}
+              sx={{
+                flex: 1,
+                py: 0.75,
+                px: 2,
+                minHeight: 36,
+                borderRadius: 0,
+                backgroundColor: dateFilter === 'today' ? '#1976d2' : 'transparent',
+                color: dateFilter === 'today' ? '#fff' : '#495057',
+                fontWeight: dateFilter === 'today' ? 700 : 600,
+                fontSize: '0.875rem',
+                textTransform: 'none',
+                borderRight: '1px solid #dee2e6',
+                transition: 'all 0.2s ease-in-out',
+                boxShadow: dateFilter === 'today' ? 'inset 0 2px 4px rgba(0,0,0,0.1)' : 'none',
+                '&:hover': {
+                  backgroundColor: dateFilter === 'today' ? '#1565c0' : '#e9ecef',
+                },
+              }}
+            >
+              Today
+            </Button>
+            <Button
+              onClick={() => setDateFilter('thisMonth')}
+              sx={{
+                flex: 1,
+                py: 0.75,
+                px: 2,
+                minHeight: 36,
+                borderRadius: 0,
+                backgroundColor: dateFilter === 'thisMonth' ? '#1976d2' : 'transparent',
+                color: dateFilter === 'thisMonth' ? '#fff' : '#495057',
+                fontWeight: dateFilter === 'thisMonth' ? 700 : 600,
+                fontSize: '0.875rem',
+                textTransform: 'none',
+                borderRight: '1px solid #dee2e6',
+                transition: 'all 0.2s ease-in-out',
+                boxShadow: dateFilter === 'thisMonth' ? 'inset 0 2px 4px rgba(0,0,0,0.1)' : 'none',
+                '&:hover': {
+                  backgroundColor: dateFilter === 'thisMonth' ? '#1565c0' : '#e9ecef',
+                },
+              }}
+            >
+              This Month
+            </Button>
+            <Button
+              onClick={() => setDateFilter('previousMonth')}
+              sx={{
+                flex: 1,
+                py: 0.75,
+                px: 2,
+                minHeight: 36,
+                borderRadius: 0,
+                backgroundColor: dateFilter === 'previousMonth' ? '#1976d2' : 'transparent',
+                color: dateFilter === 'previousMonth' ? '#fff' : '#495057',
+                fontWeight: dateFilter === 'previousMonth' ? 700 : 600,
+                fontSize: '0.875rem',
+                textTransform: 'none',
+                transition: 'all 0.2s ease-in-out',
+                boxShadow:
+                  dateFilter === 'previousMonth' ? 'inset 0 2px 4px rgba(0,0,0,0.1)' : 'none',
+                '&:hover': {
+                  backgroundColor: dateFilter === 'previousMonth' ? '#1565c0' : '#e9ecef',
+                },
+                '&:last-of-type': {
+                  borderTopRightRadius: 6,
+                  borderBottomRightRadius: 6,
+                },
+              }}
+            >
+              Previous Month
+            </Button>
+          </Paper>
+
           {/* Search Filter */}
           <CustomSearchFilter
             searchKey={searchKey}

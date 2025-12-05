@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Box, TextField, Button, Paper, Typography, CircularProgress, Autocomplete } from '@mui/material';
+import {
+  Box,
+  TextField,
+  Button,
+  Paper,
+  Typography,
+  CircularProgress,
+  Autocomplete,
+} from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs, { Dayjs } from 'dayjs';
-import type { FormField } from '../utils/types';
+import type { FormField, FormFieldOption } from '../utils/types';
 
 interface CustomFormProps {
   fields: FormField[];
@@ -14,7 +22,14 @@ interface CustomFormProps {
   loading?: boolean;
 }
 
-const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = false }: CustomFormProps) => {
+const CustomForm = ({
+  fields,
+  onSubmit,
+  initialData,
+  onCancel,
+  title,
+  loading = false,
+}: CustomFormProps) => {
   const [formData, setFormData] = useState<Record<string, string | number | Dayjs | null>>({});
   const [errors, setErrors] = useState<Record<string, string>>({}); // ✅ store error messages instead of booleans
 
@@ -39,7 +54,7 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = 
     setErrors({});
   }, [initialData, fields]);
 
-  const handleChange = (key: string, value: string | Dayjs | null) => {
+  const handleChange = (key: string, value: string | number | Dayjs | null) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
 
     // Clear error dynamically when user fixes input
@@ -200,13 +215,6 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = 
           {fields.map((field, index) => {
             const isSelect = field.options && field.options.length > 0;
             const isDate = field.type === 'date';
-            // Check if options are objects with id/name structure
-            const hasObjectOptions =
-              isSelect &&
-              field.options &&
-              field.options.length > 0 &&
-              typeof field.options[0] === 'object' &&
-              'id' in field.options[0];
             // If it's the last field and there's an odd number of fields, make it full width
             const isLastOddField = fields.length % 2 !== 0 && index === fields.length - 1;
             return (
@@ -244,8 +252,8 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = 
                     }}
                   />
                 ) : isSelect ? (
-                  <Autocomplete
-                    options={field.options || []}
+                  <Autocomplete<string | FormFieldOption, false, false, false>
+                    options={(field.options || []) as (string | FormFieldOption)[]}
                     getOptionLabel={(option) => {
                       if (typeof option === 'object' && 'id' in option) {
                         return option.name;
@@ -279,9 +287,10 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = 
                     }}
                     filterOptions={(options, { inputValue }) => {
                       return options.filter((option) => {
-                        const label = typeof option === 'object' && 'id' in option
-                          ? option.name
-                          : String(option);
+                        const label =
+                          typeof option === 'object' && 'id' in option
+                            ? option.name
+                            : String(option);
                         return label.toLowerCase().startsWith(inputValue.toLowerCase());
                       });
                     }}
@@ -301,9 +310,37 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = 
                 ) : (
                   <TextField
                     label={field.label}
-                    type={field.type || 'text'}
-                    value={formData[field.key] ?? ''}
-                    onChange={(e) => handleChange(field.key, e.target.value)}
+                    type={field.type === 'number' ? 'text' : field.type || 'text'}
+                    value={
+                      field.type === 'number' && formData[field.key]
+                        ? Number(String(formData[field.key]).replace(/,/g, '.') || 0).toFixed(2)
+                        : formData[field.key] ?? ''
+                    }
+                    onChange={(e) => {
+                      if (field.type === 'number') {
+                        // Replace all commas with dots for decimal input
+                        let normalizedValue = e.target.value.replace(/,/g, '.');
+                        // Remove any non-numeric characters except dot
+                        normalizedValue = normalizedValue.replace(/[^0-9.]/g, '');
+                        // Ensure only one dot for decimal
+                        const parts = normalizedValue.split('.');
+                        if (parts.length > 2) {
+                          normalizedValue = parts[0] + '.' + parts.slice(1).join('');
+                        }
+                        const value = Number(normalizedValue) || 0;
+                        handleChange(field.key, value);
+                      } else {
+                        handleChange(field.key, e.target.value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Format to 2 decimal places when field loses focus (like Total Amount and Price Per Unit)
+                      if (field.type === 'number' && e.target.value) {
+                        const normalizedValue = e.target.value.replace(/,/g, '.');
+                        const numValue = Number(normalizedValue) || 0;
+                        handleChange(field.key, numValue);
+                      }
+                    }}
                     error={!!errors[field.key]}
                     helperText={errors[field.key] || ' '}
                     size="small"
@@ -311,6 +348,7 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = 
                     required={field.required === true}
                     disabled={loading || field.disabled === true}
                     sx={{ width: '100%' }}
+                    placeholder={field.type === 'number' ? '0.00' : undefined}
                   />
                 )}
               </Box>
@@ -331,11 +369,23 @@ const CustomForm = ({ fields, onSubmit, initialData, onCancel, title, loading = 
                   },
                 }}
               >
-                {loading ? <CircularProgress size={20} color="inherit" /> : isEditMode ? 'Save' : 'Add'}
+                {loading ? (
+                  <CircularProgress size={20} color="inherit" />
+                ) : isEditMode ? (
+                  'Save'
+                ) : (
+                  'Add'
+                )}
               </Button>
 
               {isEditMode && (
-                <Button type="button" variant="outlined" sx={{ flex: 1 }} onClick={onCancel} disabled={loading}>
+                <Button
+                  type="button"
+                  variant="outlined"
+                  sx={{ flex: 1 }}
+                  onClick={onCancel}
+                  disabled={loading}
+                >
                   Cancel
                 </Button>
               )}

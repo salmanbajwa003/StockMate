@@ -149,7 +149,7 @@ const Products = () => {
         if (!dateRange || typeof dateRange !== 'object' || !('start' in dateRange)) {
           return false;
         }
-        
+
         const updatedAt = item.updatedAt ? dayjs(item.updatedAt) : null;
         if (!updatedAt) return false;
 
@@ -162,11 +162,11 @@ const Products = () => {
             updatedAt.isSameOrAfter(startDate.startOf('day')) &&
             updatedAt.isSameOrBefore(endDate.endOf('day'))
           );
-        } 
+        }
         // If only start date is selected - filter from start date onwards
         else if (startDate) {
           return updatedAt.isSameOrAfter(startDate.startOf('day'));
-        } 
+        }
         // If only end date is selected - filter up to end date (default to today if not set)
         else if (endDate) {
           return updatedAt.isSameOrBefore(endDate.endOf('day'));
@@ -195,9 +195,7 @@ const Products = () => {
             : '';
         } else if (searchKey === 'warehouses') {
           if (item.productWarehouses && item.productWarehouses.length > 0) {
-            fieldValue = item.productWarehouses
-              .map((pw) => pw?.warehouse?.name || '')
-              .join(', ');
+            fieldValue = item.productWarehouses.map((pw) => pw?.warehouse?.name || '').join(', ');
           }
         } else if (searchKey === 'unit') {
           fieldValue = item.unit || '';
@@ -444,8 +442,14 @@ const Products = () => {
                       typeof selectedItem.color === 'object' && selectedItem.color?.id
                         ? selectedItem.color.id
                         : '',
-                    price: selectedItem.price || '',
-                    weight: selectedItem.weight || '',
+                    // Normalize price: convert comma to dot if present (e.g., "10,00" -> "10.00")
+                    price: selectedItem.price
+                      ? Number(String(selectedItem.price).replace(/,/g, '.') || 0)
+                      : '',
+                    // Normalize weight/quantity: convert comma to dot if present (e.g., "10,00" -> "10.00")
+                    weight: selectedItem.weight
+                      ? Number(String(selectedItem.weight).replace(/,/g, '.') || 0)
+                      : '',
                     unit: selectedItem.unit || '',
                     warehouseId:
                       typeof selectedItem.productWarehouses?.[0]?.warehouse === 'object' &&

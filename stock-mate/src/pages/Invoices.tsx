@@ -75,8 +75,6 @@ const Invoices = () => {
     () => [
       { label: 'By Invoice Number', value: 'invoiceNumber', type: 'text' },
       { label: 'By Customer', value: 'customerName', type: 'text' },
-      { label: 'By Product Name', value: 'productName', type: 'text' },
-      { label: 'By Warehouse', value: 'warehouseName', type: 'text' },
       { label: 'By Status', value: 'status', type: 'text' },
       { label: 'By Date', value: 'invoiceDate', type: 'dateRange' },
     ],
@@ -199,27 +197,6 @@ const Invoices = () => {
               typeof invoice.customer === 'object'
                 ? invoice.customer?.name || ''
                 : invoice.customer || '';
-          } else if (searchKey === 'warehouseName') {
-            fieldValue =
-              typeof invoice.warehouse === 'object'
-                ? invoice.warehouse?.name || ''
-                : invoice.warehouse || '';
-          } else if (searchKey === 'productName') {
-            // Get all product names from invoice items
-            if (invoice.items && invoice.items.length > 0) {
-              const productNames = invoice.items
-                .map((item) => {
-                  if (typeof item.product === 'object' && item.product?.name) {
-                    return item.product.name;
-                  }
-                  return '';
-                })
-                .filter(Boolean)
-                .join(' ');
-              fieldValue = productNames;
-            } else {
-              fieldValue = '';
-            }
           } else if (searchKey === 'status') {
             fieldValue = invoice.status || '';
           } else {
@@ -405,21 +382,27 @@ const Invoices = () => {
     const invoiceItems = invoice.items?.map((item) => {
       const qty = item.quantity?.toString() || '0';
       const price = item.unitPrice?.toString() || '0';
+      // Normalize price: replace all commas with dots for decimal (handles cases like "1000,00")
+      const normalizedPrice = price.replace(/,/g, '.');
       return {
         warehouseId: invoiceWarehouseId, // Use invoice warehouse for all items
         productId: item.product?.id?.toString() || '',
         quantity: qty,
         unit: item.unit || '',
-        unitPrice: price,
+        unitPrice: normalizedPrice,
       };
     }) || [{ warehouseId: '', productId: '', quantity: '', unit: '', unitPrice: '' }];
     setItems(invoiceItems);
     calculateTotalAmount(invoiceItems);
 
     // Update form data
+    // Normalize paidAmount: convert comma to dot if present (e.g., "10,00" -> "10.00")
+    const paidAmountValue = invoice.paidAmount
+      ? String(invoice.paidAmount).replace(/,/g, '.')
+      : '0';
     setFormData({
       customerId: typeof invoice.customer === 'object' ? invoice.customer?.id || '' : '',
-      paidAmount: invoice.paidAmount || 0,
+      paidAmount: paidAmountValue,
       notes: invoice.notes || '',
     });
   };
@@ -666,30 +649,6 @@ const Invoices = () => {
         typeof row.customer === 'object' ? row.customer?.name : row.customer || '-',
     },
     {
-      key: 'productName',
-      label: 'Product Name',
-      render: (row: Invoice) => {
-        if (row.items && row.items.length > 0) {
-          const productNames = row.items
-            .map((item) => {
-              if (typeof item.product === 'object' && item.product?.name) {
-                return item.product.name;
-              }
-              return null;
-            })
-            .filter(Boolean);
-          return productNames.length > 0 ? productNames.join(', ') : '-';
-        }
-        return '-';
-      },
-    },
-    {
-      key: 'warehouse',
-      label: 'Warehouse',
-      render: (row: Invoice) =>
-        typeof row.warehouse === 'object' ? row.warehouse?.name : row.warehouse || '-',
-    },
-    {
       key: 'total',
       label: 'Total',
       render: (row: Invoice) => `${Number(row.total || 0).toFixed(2)}`,
@@ -872,20 +831,49 @@ const Invoices = () => {
                           multiline={isTextarea}
                           rows={isTextarea ? 4 : undefined}
                           label={field.label}
-                          type={isTextarea ? undefined : field.type || 'text'}
-                          value={fieldValue}
+                          type={
+                            isTextarea
+                              ? undefined
+                              : field.type === 'number'
+                              ? 'text'
+                              : field.type || 'text'
+                          }
+                          value={
+                            field.type === 'number' && fieldValue
+                              ? Number(String(fieldValue).replace(/,/g, '.') || 0).toFixed(2)
+                              : fieldValue
+                          }
                           onChange={(e) => {
-                            const value =
-                              field.type === 'number'
-                                ? Number(e.target.value) || 0
-                                : e.target.value;
-                            setFormData((prev) => ({ ...prev, [field.key]: value }));
+                            if (field.type === 'number') {
+                              // Replace all commas with dots for decimal input
+                              let normalizedValue = e.target.value.replace(/,/g, '.');
+                              // Remove any non-numeric characters except dot
+                              normalizedValue = normalizedValue.replace(/[^0-9.]/g, '');
+                              // Ensure only one dot for decimal
+                              const parts = normalizedValue.split('.');
+                              if (parts.length > 2) {
+                                normalizedValue = parts[0] + '.' + parts.slice(1).join('');
+                              }
+                              const value = Number(normalizedValue) || 0;
+                              setFormData((prev) => ({ ...prev, [field.key]: value }));
+                            } else {
+                              setFormData((prev) => ({ ...prev, [field.key]: e.target.value }));
+                            }
+                          }}
+                          onBlur={(e) => {
+                            // Format to 2 decimal places when field loses focus (like Total Amount and Price Per Unit)
+                            if (field.type === 'number' && e.target.value) {
+                              const normalizedValue = e.target.value.replace(/,/g, '.');
+                              const numValue = Number(normalizedValue) || 0;
+                              setFormData((prev) => ({ ...prev, [field.key]: numValue }));
+                            }
                           }}
                           required={field.required === true}
                           size="small"
                           fullWidth
                           disabled={saving}
                           sx={{ width: '100%' }}
+                          placeholder={field.type === 'number' ? '0.00' : undefined}
                         />
                       )}
                     </Box>
@@ -961,7 +949,7 @@ const Invoices = () => {
                       />
                       <Autocomplete
                         options={availableWarehousesForItem}
-                        getOptionLabel={(option) => `${option.warehouse.name} (${option.quantity})`}
+                        getOptionLabel={(option) => `${option.warehouse.name}`}
                         isOptionEqualToValue={(option, value) =>
                           option.warehouse.id === value.warehouse.id
                         }
@@ -1062,14 +1050,38 @@ const Invoices = () => {
                       />
                       <TextField
                         label="Price Per Unit"
-                        type="number"
-                        value={item.unitPrice}
-                        onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value)}
+                        type="text"
+                        value={
+                          item.unitPrice
+                            ? Number(item.unitPrice.toString().replace(/,/g, '.') || 0).toFixed(2)
+                            : ''
+                        }
+                        onChange={(e) => {
+                          // Replace all commas with dots for decimal input (handles cases like "1000,00")
+                          // Ensure value is always in decimal format (e.g., "1000.00")
+                          let normalizedValue = e.target.value.replace(/,/g, '.');
+                          // Remove any non-numeric characters except dot
+                          normalizedValue = normalizedValue.replace(/[^0-9.]/g, '');
+                          // Ensure only one dot for decimal
+                          const parts = normalizedValue.split('.');
+                          if (parts.length > 2) {
+                            normalizedValue = parts[0] + '.' + parts.slice(1).join('');
+                          }
+                          handleItemChange(index, 'unitPrice', normalizedValue);
+                        }}
+                        onBlur={(e) => {
+                          // Format to 2 decimal places when field loses focus (like Total Amount)
+                          if (e.target.value) {
+                            const normalizedValue = e.target.value.replace(/,/g, '.');
+                            const numValue = Number(normalizedValue) || 0;
+                            handleItemChange(index, 'unitPrice', numValue.toFixed(2));
+                          }
+                        }}
                         required
                         size="small"
                         fullWidth
                         disabled={saving}
-                        inputProps={{ min: 0, step: 0.01 }}
+                        placeholder="0.00"
                       />
                       {items.length > 1 && (
                         <IconButton

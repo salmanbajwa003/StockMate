@@ -139,12 +139,6 @@ export class ProductsService {
               `[${warehouse.name}] Unit conversion: ${conversion.originalValue} ${conversion.originalUnit} → ${conversion.value} ${conversion.unit}`,
             );
           }
-          console.log('COMEEONNNNN', {
-            productId: id,
-            warehouseId: warehouse.id,
-            quantity: conversion.value,
-            unit: conversion.unit,
-          });
 
           return this.productWarehouseRepository.update(
             { product: { id } },
@@ -197,32 +191,13 @@ export class ProductsService {
     return productWarehouse.quantity >= requiredQuantity;
   }
 
-  async adjustWarehouseQuantity(
-    productId: number,
-    warehouseId: number,
-    adjustment: number,
-    reason?: string,
-  ): Promise<ProductWarehouse> {
-    let productWarehouse = await this.getProductWarehouse(productId, warehouseId);
-
-    if (!productWarehouse) {
-      throw new NotFoundException(`Product not found in the specified warehouse`);
-    }
-
-    productWarehouse.quantity = Number(productWarehouse.quantity) + adjustment;
-
-    if (productWarehouse.quantity < 0) {
-      throw new BadRequestException(
-        `Adjustment would result in negative quantity. Current: ${Number(productWarehouse.quantity) - adjustment}, Adjustment: ${adjustment}`,
-      );
-    }
-
-    if (reason) {
-      console.log(
-        `[${productWarehouse.warehouse.name}] ${productWarehouse.product.name}: ${adjustment > 0 ? '+' : ''}${adjustment} (${reason})`,
-      );
-    }
-
-    return await this.productWarehouseRepository.save(productWarehouse);
+  async adjustQuantity(productId: number, adjustment: number): Promise<void> {
+    const product = await this.productRepository.findOne({ where: { id: productId } });
+    await this.productRepository.update(
+      { id: productId },
+      {
+        weight: product.weight - adjustment,
+      },
+    );
   }
 }

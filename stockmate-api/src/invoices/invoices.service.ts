@@ -103,7 +103,7 @@ export class InvoicesService {
     const savedInvoice = await this.invoicesRepository.save(invoice);
 
     // Deduct from warehouse quantities when invoice is created
-    await this.deductWarehouseQuantities(savedInvoice);
+    await this.deductQuantities(savedInvoice);
 
     return savedInvoice;
   }
@@ -116,15 +116,10 @@ export class InvoicesService {
     return items.reduce((sum, item) => sum + this.calculateItemTotal(item), 0);
   }
 
-  private async deductWarehouseQuantities(invoice: Invoice): Promise<void> {
+  private async deductQuantities(invoice: Invoice): Promise<void> {
     // Deduct warehouse quantity for each item in the invoice
     for (const item of invoice.items) {
-      await this.productsService.adjustWarehouseQuantity(
-        item.product.id,
-        invoice.warehouse.id,
-        -item.quantity,
-        `Invoice ${invoice.invoiceNumber}`,
-      );
+      await this.productsService.adjustQuantity(item.product.id, -item.quantity);
     }
   }
 
@@ -198,12 +193,7 @@ export class InvoicesService {
 
     // Restore warehouse quantities before deletion
     for (const item of invoice.items) {
-      await this.productsService.adjustWarehouseQuantity(
-        item.product.id,
-        invoice.warehouse.id,
-        item.quantity,
-        `Invoice ${invoice.invoiceNumber} deleted`,
-      );
+      await this.productsService.adjustQuantity(item.product.id, item.quantity);
     }
 
     await this.invoicesRepository.softDelete(id);

@@ -64,6 +64,10 @@ const Invoices = () => {
     paidAmount: '',
     notes: '',
   });
+  // Track raw input values for number fields to allow free typing (like Products Price field)
+  const [numberFieldInputs, setNumberFieldInputs] = useState<Record<string, string>>({});
+  // Track raw input values for Price Per Unit in invoice items
+  const [itemPriceInputs, setItemPriceInputs] = useState<Record<number, string>>({});
 
   // Form state for invoice items (not handled by CustomForm)
   const [items, setItems] = useState<InvoiceItemForm[]>([
@@ -280,6 +284,20 @@ const Invoices = () => {
     const newItems = items.filter((_, i) => i !== index);
     setItems(newItems);
     calculateTotalAmount(newItems);
+    // Remove price input for the removed item and reindex remaining items
+    setItemPriceInputs((prev) => {
+      const updated: Record<number, string> = {};
+      Object.keys(prev).forEach((key) => {
+        const keyNum = Number(key);
+        if (keyNum < index) {
+          updated[keyNum] = prev[keyNum];
+        } else if (keyNum > index) {
+          updated[keyNum - 1] = prev[keyNum];
+        }
+        // Skip the removed item (keyNum === index)
+      });
+      return updated;
+    });
   };
 
   // Handle form submission (from CustomForm + items)
@@ -395,6 +413,19 @@ const Invoices = () => {
     setItems(invoiceItems);
     calculateTotalAmount(invoiceItems);
 
+    // Initialize itemPriceInputs for each item
+    const priceInputs: Record<number, string> = {};
+    invoiceItems.forEach((item, index) => {
+      if (item.unitPrice) {
+        const normalizedPrice = String(item.unitPrice).replace(/,/g, '.');
+        const numValue = Number(normalizedPrice);
+        if (!isNaN(numValue)) {
+          priceInputs[index] = String(numValue);
+        }
+      }
+    });
+    setItemPriceInputs(priceInputs);
+
     // Update form data
     // Normalize paidAmount: convert comma to dot if present (e.g., "10,00" -> "10.00")
     const paidAmountValue = invoice.paidAmount
@@ -405,6 +436,14 @@ const Invoices = () => {
       paidAmount: paidAmountValue,
       notes: invoice.notes || '',
     });
+    // Initialize number field inputs
+    if (paidAmountValue && paidAmountValue !== '0') {
+      const numValue = Number(paidAmountValue);
+      setNumberFieldInputs((prev) => ({
+        ...prev,
+        paidAmount: !isNaN(numValue) ? String(numValue) : '',
+      }));
+    }
   };
 
   // Cancel edit
@@ -422,6 +461,8 @@ const Invoices = () => {
       paidAmount: '',
       notes: '',
     });
+    setNumberFieldInputs({});
+    setItemPriceInputs({});
   };
 
   // Get available warehouses for a specific product (with quantities)
@@ -839,8 +880,8 @@ const Invoices = () => {
                               : field.type || 'text'
                           }
                           value={
-                            field.type === 'number' && fieldValue
-                              ? Number(String(fieldValue).replace(/,/g, '.') || 0).toFixed(2)
+                            field.type === 'number'
+                              ? numberFieldInputs[field.key] ?? ''
                               : fieldValue
                           }
                           onChange={(e) => {
@@ -854,18 +895,129 @@ const Invoices = () => {
                               if (parts.length > 2) {
                                 normalizedValue = parts[0] + '.' + parts.slice(1).join('');
                               }
-                              const value = Number(normalizedValue) || 0;
-                              setFormData((prev) => ({ ...prev, [field.key]: value }));
+                              // Limit decimal places to 2 while typing
+                              if (normalizedValue.includes('.')) {
+                                const [integerPart, decimalPart] = normalizedValue.split('.');
+                                if (decimalPart && decimalPart.length > 2) {
+                                  normalizedValue = integerPart + '.' + decimalPart.substring(0, 2);
+                                }
+                              }
+                              // Store raw input string for display
+                              setNumberFieldInputs((prev) => ({
+                                ...prev,
+                                [field.key]: normalizedValue,
+                              }));
+                              // Store numeric value in formData for submission
+                              if (normalizedValue === '' || normalizedValue === '.') {
+                                setFormData((prev) => ({ ...prev, [field.key]: '' }));
+                              } else {
+                                const numValue = Number(normalizedValue);
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  [field.key]: isNaN(numValue) ? 0 : numValue,
+                                }));
+                              }
                             } else {
                               setFormData((prev) => ({ ...prev, [field.key]: e.target.value }));
                             }
                           }}
+                          onKeyPress={(e) => {
+                            // Prevent non-numeric input for number fields
+                            if (field.type === 'number') {
+                              const char = e.key;
+                              const allowedKeys = [
+                                '0',
+                                '1',
+                                '2',
+                                '3',
+                                '4',
+                                '5',
+                                '6',
+                                '7',
+                                '8',
+                                '9',
+                                '.',
+                                'Backspace',
+                                'Delete',
+                                'ArrowLeft',
+                                'ArrowRight',
+                                'ArrowUp',
+                                'ArrowDown',
+                                'Tab',
+                                'Enter',
+                              ];
+                              // Allow control keys (Ctrl, Alt, Meta, etc.)
+                              if (e.ctrlKey || e.metaKey || e.altKey) {
+                                return;
+                              }
+                              // Check if the key is allowed
+                              if (
+                                !allowedKeys.includes(char) &&
+                                !e.ctrlKey &&
+                                !e.metaKey &&
+                                !e.altKey
+                              ) {
+                                e.preventDefault();
+                              }
+                              // Prevent multiple decimal points
+                              if (
+                                char === '.' &&
+                                (e.currentTarget as HTMLInputElement).value.includes('.')
+                              ) {
+                                e.preventDefault();
+                              }
+                            }
+                          }}
+                          onPaste={(e) => {
+                            // Handle paste for number fields - filter out non-numeric characters
+                            if (field.type === 'number') {
+                              e.preventDefault();
+                              const pastedText = e.clipboardData.getData('text');
+                              // Replace commas with dots and remove non-numeric characters
+                              let normalizedValue = pastedText.replace(/,/g, '.');
+                              normalizedValue = normalizedValue.replace(/[^0-9.]/g, '');
+                              // Ensure only one dot
+                              const parts = normalizedValue.split('.');
+                              if (parts.length > 2) {
+                                normalizedValue = parts[0] + '.' + parts.slice(1).join('');
+                              }
+                              // Limit decimal places to 2
+                              if (normalizedValue.includes('.')) {
+                                const [integerPart, decimalPart] = normalizedValue.split('.');
+                                if (decimalPart && decimalPart.length > 2) {
+                                  normalizedValue = integerPart + '.' + decimalPart.substring(0, 2);
+                                }
+                              }
+                              setNumberFieldInputs((prev) => ({
+                                ...prev,
+                                [field.key]: normalizedValue,
+                              }));
+                              const value = Number(normalizedValue) || 0;
+                              setFormData((prev) => ({ ...prev, [field.key]: value }));
+                            }
+                          }}
                           onBlur={(e) => {
-                            // Format to 2 decimal places when field loses focus (like Total Amount and Price Per Unit)
-                            if (field.type === 'number' && e.target.value) {
-                              const normalizedValue = e.target.value.replace(/,/g, '.');
-                              const numValue = Number(normalizedValue) || 0;
-                              setFormData((prev) => ({ ...prev, [field.key]: numValue }));
+                            // Format to 2 decimal places when field loses focus
+                            if (field.type === 'number') {
+                              const currentInput = numberFieldInputs[field.key] || '';
+                              if (currentInput === '' || currentInput === '.') {
+                                setNumberFieldInputs((prev) => {
+                                  const updated = { ...prev };
+                                  delete updated[field.key];
+                                  return updated;
+                                });
+                                setFormData((prev) => ({ ...prev, [field.key]: '' }));
+                              } else {
+                                const normalizedValue = currentInput.replace(/,/g, '.');
+                                const numValue = Number(normalizedValue) || 0;
+                                // Format to 2 decimal places
+                                const formatted = numValue.toFixed(2);
+                                setNumberFieldInputs((prev) => ({
+                                  ...prev,
+                                  [field.key]: formatted,
+                                }));
+                                setFormData((prev) => ({ ...prev, [field.key]: numValue }));
+                              }
                             }
                           }}
                           required={field.required === true}
@@ -1051,14 +1203,13 @@ const Invoices = () => {
                       <TextField
                         label="Price Per Unit"
                         type="text"
+                        inputMode="decimal"
                         value={
-                          item.unitPrice
-                            ? Number(item.unitPrice.toString().replace(/,/g, '.') || 0).toFixed(2)
-                            : ''
+                          itemPriceInputs[index] ??
+                          (item.unitPrice ? String(item.unitPrice).replace(/,/g, '.') : '')
                         }
                         onChange={(e) => {
-                          // Replace all commas with dots for decimal input (handles cases like "1000,00")
-                          // Ensure value is always in decimal format (e.g., "1000.00")
+                          // Replace all commas with dots for decimal input
                           let normalizedValue = e.target.value.replace(/,/g, '.');
                           // Remove any non-numeric characters except dot
                           normalizedValue = normalizedValue.replace(/[^0-9.]/g, '');
@@ -1067,14 +1218,112 @@ const Invoices = () => {
                           if (parts.length > 2) {
                             normalizedValue = parts[0] + '.' + parts.slice(1).join('');
                           }
-                          handleItemChange(index, 'unitPrice', normalizedValue);
+                          // Limit decimal places to 2 while typing
+                          if (normalizedValue.includes('.')) {
+                            const [integerPart, decimalPart] = normalizedValue.split('.');
+                            if (decimalPart && decimalPart.length > 2) {
+                              normalizedValue = integerPart + '.' + decimalPart.substring(0, 2);
+                            }
+                          }
+                          // Store raw input string for display
+                          setItemPriceInputs((prev) => ({ ...prev, [index]: normalizedValue }));
+                          // Store numeric value in items for calculation
+                          if (normalizedValue === '' || normalizedValue === '.') {
+                            handleItemChange(index, 'unitPrice', '');
+                          } else {
+                            const numValue = Number(normalizedValue);
+                            handleItemChange(
+                              index,
+                              'unitPrice',
+                              isNaN(numValue) ? '0' : String(numValue),
+                            );
+                          }
+                        }}
+                        onKeyPress={(e) => {
+                          // Prevent non-numeric input for number fields
+                          const char = e.key;
+                          const allowedKeys = [
+                            '0',
+                            '1',
+                            '2',
+                            '3',
+                            '4',
+                            '5',
+                            '6',
+                            '7',
+                            '8',
+                            '9',
+                            '.',
+                            'Backspace',
+                            'Delete',
+                            'ArrowLeft',
+                            'ArrowRight',
+                            'ArrowUp',
+                            'ArrowDown',
+                            'Tab',
+                            'Enter',
+                          ];
+                          // Allow control keys (Ctrl, Alt, Meta, etc.)
+                          if (e.ctrlKey || e.metaKey || e.altKey) {
+                            return;
+                          }
+                          // Check if the key is allowed
+                          if (
+                            !allowedKeys.includes(char) &&
+                            !e.ctrlKey &&
+                            !e.metaKey &&
+                            !e.altKey
+                          ) {
+                            e.preventDefault();
+                          }
+                          // Prevent multiple decimal points
+                          if (
+                            char === '.' &&
+                            (e.currentTarget as HTMLInputElement).value.includes('.')
+                          ) {
+                            e.preventDefault();
+                          }
+                        }}
+                        onPaste={(e) => {
+                          // Handle paste for number fields - filter out non-numeric characters
+                          e.preventDefault();
+                          const pastedText = e.clipboardData.getData('text');
+                          // Replace commas with dots and remove non-numeric characters
+                          let normalizedValue = pastedText.replace(/,/g, '.');
+                          normalizedValue = normalizedValue.replace(/[^0-9.]/g, '');
+                          // Ensure only one dot
+                          const parts = normalizedValue.split('.');
+                          if (parts.length > 2) {
+                            normalizedValue = parts[0] + '.' + parts.slice(1).join('');
+                          }
+                          // Limit decimal places to 2
+                          if (normalizedValue.includes('.')) {
+                            const [integerPart, decimalPart] = normalizedValue.split('.');
+                            if (decimalPart && decimalPart.length > 2) {
+                              normalizedValue = integerPart + '.' + decimalPart.substring(0, 2);
+                            }
+                          }
+                          setItemPriceInputs((prev) => ({ ...prev, [index]: normalizedValue }));
+                          const value = Number(normalizedValue) || 0;
+                          handleItemChange(index, 'unitPrice', String(value));
                         }}
                         onBlur={(e) => {
-                          // Format to 2 decimal places when field loses focus (like Total Amount)
-                          if (e.target.value) {
-                            const normalizedValue = e.target.value.replace(/,/g, '.');
+                          // Format to 2 decimal places when field loses focus
+                          const currentInput = itemPriceInputs[index] || '';
+                          if (currentInput === '' || currentInput === '.') {
+                            setItemPriceInputs((prev) => {
+                              const updated = { ...prev };
+                              delete updated[index];
+                              return updated;
+                            });
+                            handleItemChange(index, 'unitPrice', '');
+                          } else {
+                            const normalizedValue = currentInput.replace(/,/g, '.');
                             const numValue = Number(normalizedValue) || 0;
-                            handleItemChange(index, 'unitPrice', numValue.toFixed(2));
+                            // Format to 2 decimal places
+                            const formatted = numValue.toFixed(2);
+                            setItemPriceInputs((prev) => ({ ...prev, [index]: formatted }));
+                            handleItemChange(index, 'unitPrice', formatted);
                           }
                         }}
                         required

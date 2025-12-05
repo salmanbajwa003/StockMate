@@ -216,6 +216,25 @@ const Products = () => {
 
     try {
       setSaving(true);
+
+      // Generate product name from color + fabric
+      const fabricId = data.fabricId ? Number(data.fabricId) : null;
+      const colorId = data.colorId ? Number(data.colorId) : null;
+
+      // Find color and fabric names from their IDs
+      const selectedColor = colorId ? colors.find((c) => c.id === colorId) : null;
+      const selectedFabric = fabricId ? fabrics.find((f) => f.id === fabricId) : null;
+
+      // Generate name: "Color Fabric" (e.g., "Red Cotton")
+      let productName = '';
+      if (selectedColor && selectedFabric) {
+        productName = `${selectedColor.name} ${selectedFabric.name}`;
+      } else if (selectedColor) {
+        productName = selectedColor.name;
+      } else if (selectedFabric) {
+        productName = selectedFabric.name;
+      }
+
       // Build payload with required and optional fields
       const payload: {
         name: string;
@@ -230,9 +249,9 @@ const Products = () => {
           unit: string;
         }[];
       } = {
-        name: String(data.name),
-        fabricId: data.fabricId ? Number(data.fabricId) : null,
-        colorId: data.colorId ? Number(data.colorId) : null,
+        name: productName,
+        fabricId: fabricId,
+        colorId: colorId,
         warehouseQuantities: [
           {
             warehouseId: data.warehouseId ? Number(data.warehouseId) : null,
@@ -379,10 +398,10 @@ const Products = () => {
   ];
 
   // Build form fields with dropdown options
-  // Required fields: name, fabricId, colorId
+  // Required fields: fabricId, colorId
   // Optional fields: price, weight, unit
+  // Note: Product name is auto-generated from color + fabric and not shown in form
   const fields: FormField[] = [
-    { key: 'name', label: 'Product Name', required: true },
     {
       key: 'warehouseId',
       label: 'Warehouse',
@@ -433,7 +452,6 @@ const Products = () => {
             initialData={
               selectedItem
                 ? {
-                    name: selectedItem.name,
                     fabricId:
                       typeof selectedItem.fabric === 'object' && selectedItem.fabric?.id
                         ? selectedItem.fabric.id

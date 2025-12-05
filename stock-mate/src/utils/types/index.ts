@@ -111,6 +111,7 @@ export interface FormField {
   options?: string[] | FormFieldOption[]; // Support both string arrays and id/name objects
   required?: boolean; // Whether the field is required (defaults to false)
   disabled?: boolean; // Whether the field is disabled
+  readOnly?: boolean; // Whether the field is read-only
 }
 
 // Auth Types

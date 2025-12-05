@@ -55,11 +55,11 @@ export class InvoicesService {
       }
 
       // Validate that the unit matches the product warehouse unit
-      if (productWarehouse.unit !== itemDto.unit) {
-        throw new BadRequestException(
-          `Unit mismatch for product ${product.name}. Product unit in warehouse is ${productWarehouse.unit}, but invoice item unit is ${itemDto.unit}. Unit must match the product's warehouse unit.`,
-        );
-      }
+      // if (productWarehouse.unit !== itemDto.unit) {
+      //   throw new BadRequestException(
+      //     `Unit mismatch for product ${product.name}. Product unit in warehouse is ${productWarehouse.unit}, but invoice item unit is ${itemDto.unit}. Unit must match the product's warehouse unit.`,
+      //   );
+      // }
 
       if (productWarehouse.quantity < itemDto.quantity) {
         throw new BadRequestException(

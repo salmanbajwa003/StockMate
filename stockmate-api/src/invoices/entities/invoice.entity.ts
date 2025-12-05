@@ -11,7 +11,7 @@ export enum InvoiceStatus {
 
 @Entity('invoices')
 export class Invoice extends BaseEntity {
-  @Column({ length: 50, unique: true })
+  @Column({ length: 50, nullable: true })
   invoiceNumber: string;
 
   @ManyToOne(() => Customer, { eager: true })

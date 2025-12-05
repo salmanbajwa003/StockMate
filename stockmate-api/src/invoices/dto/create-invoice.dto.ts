@@ -15,11 +15,6 @@ import { InvoiceStatus } from '../entities/invoice.entity';
 import { CreateInvoiceItemDto } from './create-invoice-item.dto';
 
 export class CreateInvoiceDto {
-  @ApiProperty({ example: 'INV-2025-001' })
-  @IsString()
-  @IsNotEmpty()
-  invoiceNumber: string;
-
   @ApiProperty({ example: 1 })
   @IsNumber()
   @IsNotEmpty()

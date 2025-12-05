@@ -127,7 +127,7 @@ export class ProductsService {
         }
 
         // Create ProductWarehouse entries with conversions
-        const productWarehouses = warehouseQuantities.map((wq) => {
+        warehouseQuantities.forEach((wq) => {
           const warehouse = warehouses.find((w) => w.id === wq.warehouseId);
 
           // Apply conversion rules: Meter → Yard, Yard → Yard, Kg → Kg
@@ -139,21 +139,28 @@ export class ProductsService {
               `[${warehouse.name}] Unit conversion: ${conversion.originalValue} ${conversion.originalUnit} → ${conversion.value} ${conversion.unit}`,
             );
           }
-
-          return this.productWarehouseRepository.create({
-            product,
-            warehouse,
+          console.log('COMEEONNNNN', {
+            productId: id,
+            warehouseId: warehouse.id,
             quantity: conversion.value,
             unit: conversion.unit,
           });
-        });
 
-        await this.productWarehouseRepository.save(productWarehouses);
+          return this.productWarehouseRepository.update(
+            { product: { id } },
+            {
+              warehouse,
+              quantity: conversion.value,
+              unit: conversion.unit,
+            },
+          );
+        });
       }
     }
 
     Object.assign(product, productData);
     await this.productRepository.save(product);
+
     return this.findOne(id);
   }
 

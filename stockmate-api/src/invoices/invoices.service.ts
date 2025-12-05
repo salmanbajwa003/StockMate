@@ -33,17 +33,6 @@ export class InvoicesService {
     const customer = await this.customersService.findOne(customerId);
     const warehouse = await this.warehousesService.findOne(warehouseId);
 
-    // Check if invoice number already exists
-    const existingInvoice = await this.invoicesRepository.findOne({
-      where: { invoiceNumber: createInvoiceDto.invoiceNumber },
-    });
-
-    if (existingInvoice) {
-      throw new ConflictException(
-        `Invoice with number ${createInvoiceDto.invoiceNumber} already exists`,
-      );
-    }
-
     // Validate items and check warehouse availability
     if (!items || items.length === 0) {
       throw new BadRequestException('Invoice must have at least one item');

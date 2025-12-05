@@ -65,7 +65,6 @@ export interface InvoiceItem {
 
 export interface Invoice {
   id: number;
-  invoiceNumber: string; // Required, unique
   customer: { id: number; name: string } | string; // Required
   warehouse: { id: number; name: string } | string; // Required
   invoiceDate: string; // Optional (defaults to now)

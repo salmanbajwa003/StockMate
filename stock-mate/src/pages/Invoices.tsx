@@ -996,7 +996,7 @@ const Invoices = () => {
                               setFormData((prev) => ({ ...prev, [field.key]: value }));
                             }
                           }}
-                          onBlur={(e) => {
+                          onBlur={() => {
                             // Format to 2 decimal places when field loses focus
                             if (field.type === 'number') {
                               const currentInput = numberFieldInputs[field.key] || '';
@@ -1307,7 +1307,7 @@ const Invoices = () => {
                           const value = Number(normalizedValue) || 0;
                           handleItemChange(index, 'unitPrice', String(value));
                         }}
-                        onBlur={(e) => {
+                        onBlur={() => {
                           // Format to 2 decimal places when field loses focus
                           const currentInput = itemPriceInputs[index] || '';
                           if (currentInput === '' || currentInput === '.') {

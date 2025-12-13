@@ -26,6 +26,11 @@ interface DateRange {
   end: Dayjs | null;
 }
 
+interface PriceRange {
+  min: number | null;
+  max: number | null;
+}
+
 const API_BASE = API_ENDPOINTS.PRODUCTS;
 
 const Products = () => {
@@ -36,7 +41,7 @@ const Products = () => {
   const [saving, setSaving] = useState(false);
   const [loadingDropdowns, setLoadingDropdowns] = useState(false);
   const [searchKey, setSearchKey] = useState<string>('name');
-  const [searchValue, setSearchValue] = useState<string | Dayjs | null | DateRange>('');
+  const [searchValue, setSearchValue] = useState<string | Dayjs | null | DateRange | PriceRange>('');
   const [fabrics, setFabrics] = useState<Fiber[]>([]);
   const [colors, setColors] = useState<Color[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -51,6 +56,7 @@ const Products = () => {
       { label: 'By Unit', value: 'unit', type: 'text' },
       { label: 'By Warehouse', value: 'warehouses', type: 'text' },
       { label: 'By Date', value: 'updatedAt', type: 'dateRange' },
+      { label: 'By Price', value: 'price', type: 'priceRange' },
     ],
     [],
   );
@@ -113,6 +119,7 @@ const Products = () => {
   useEffect(() => {
     const selectedOption = searchOptions.find((opt) => opt.value === searchKey);
     const isDateRange = selectedOption?.type === 'dateRange';
+    const isPriceRange = selectedOption?.type === 'priceRange';
 
     // Check if search value is empty
     if (isDateRange) {
@@ -131,8 +138,24 @@ const Products = () => {
         setFilteredRows(rows);
         return;
       }
+    } else if (isPriceRange) {
+      const priceRange = searchValue as PriceRange;
+      if (
+        !priceRange ||
+        typeof priceRange !== 'object' ||
+        !('min' in priceRange) ||
+        !('max' in priceRange)
+      ) {
+        setFilteredRows(rows);
+        return;
+      }
+      // If both min and max are null, show all rows
+      if (priceRange.min === null && priceRange.max === null) {
+        setFilteredRows(rows);
+        return;
+      }
     } else {
-      // For non-date searches, ensure searchValue is a string
+      // For non-date/price searches, ensure searchValue is a string
       if (typeof searchValue !== 'string') {
         setFilteredRows(rows);
         return;
@@ -170,6 +193,30 @@ const Products = () => {
         // If only end date is selected - filter up to end date (default to today if not set)
         else if (endDate) {
           return updatedAt.isSameOrBefore(endDate.endOf('day'));
+        }
+        // If neither is selected, don't filter (shouldn't reach here due to earlier check)
+        return true;
+      } else if (isPriceRange) {
+        const priceRange = searchValue as PriceRange;
+        if (!priceRange || typeof priceRange !== 'object' || !('min' in priceRange)) {
+          return false;
+        }
+
+        const itemPrice = item.price ? Number(item.price) : 0;
+        const minPrice = priceRange.min;
+        const maxPrice = priceRange.max;
+
+        // If both min and max are selected
+        if (minPrice !== null && maxPrice !== null) {
+          return itemPrice >= minPrice && itemPrice <= maxPrice;
+        }
+        // If only min price is selected - filter from min price onwards
+        else if (minPrice !== null) {
+          return itemPrice >= minPrice;
+        }
+        // If only max price is selected - filter up to max price
+        else if (maxPrice !== null) {
+          return itemPrice <= maxPrice;
         }
         // If neither is selected, don't filter (shouldn't reach here due to earlier check)
         return true;
@@ -243,6 +290,7 @@ const Products = () => {
         price?: number | null;
         weight?: number | null;
         unit?: string | null;
+        comments?: string | null;
         warehouseQuantities: {
           warehouseId: number | null;
           quantity: number;
@@ -270,6 +318,9 @@ const Products = () => {
       }
       if (data.unit !== undefined && data.unit !== null && data.unit !== '') {
         payload.unit = String(data.unit);
+      }
+      if (data.comments !== undefined && data.comments !== null && data.comments !== '') {
+        payload.comments = String(data.comments);
       }
 
       if (selectedItem) {
@@ -330,6 +381,12 @@ const Products = () => {
       if (!currentValue || typeof currentValue !== 'object' || !('start' in currentValue)) {
         setSearchValue({ start: null, end: null });
       }
+    } else if (selectedOption?.type === 'priceRange') {
+      // Initialize with both null - user needs to enter prices to filter
+      const currentValue = searchValue as PriceRange;
+      if (!currentValue || typeof currentValue !== 'object' || !('min' in currentValue)) {
+        setSearchValue({ min: null, max: null });
+      }
     } else {
       // Reset to empty string for text searches
       if (typeof searchValue !== 'string') {
@@ -385,6 +442,20 @@ const Products = () => {
       },
     },
     {
+      key: 'comments',
+      label: 'Comments',
+      render: (row: Product) => {
+        if (row.comments) {
+          // Truncate long comments for table display
+          const maxLength = 50;
+          return row.comments.length > maxLength
+            ? `${row.comments.substring(0, maxLength)}...`
+            : row.comments;
+        }
+        return '-';
+      },
+    },
+    {
       key: 'updatedAt',
       label: 'Date',
       render: (row: Product) => {
@@ -434,6 +505,7 @@ const Products = () => {
       options: ['meter', 'yard', 'kg'],
     },
     { key: 'price', label: 'Price', type: 'number', required: false, fullWidth: true },
+    { key: 'comments', label: 'Comments', type: 'textarea', required: false, fullWidth: true },
   ];
 
   return (
@@ -471,6 +543,7 @@ const Products = () => {
                       ? Number(String(selectedItem.weight).replace(/,/g, '.') || 0)
                       : '',
                     unit: selectedItem.unit || '',
+                    comments: selectedItem.comments || '',
                     warehouseId:
                       typeof selectedItem.productWarehouses?.[0]?.warehouse === 'object' &&
                       selectedItem.productWarehouses?.[0]?.warehouse?.id

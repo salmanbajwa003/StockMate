@@ -9,9 +9,14 @@ interface DateRange {
   end: Dayjs | null;
 }
 
+interface PriceRange {
+  min: number | null;
+  max: number | null;
+}
+
 interface CustomSearchFilterProps {
   searchKey: string;
-  searchValue: string | Dayjs | null | DateRange;
+  searchValue: string | Dayjs | null | DateRange | PriceRange;
   options: SearchOption[];
   onKeyChange: (value: string) => void;
   onValueChange: (value: any) => void;
@@ -30,6 +35,8 @@ const CustomSearchFilter: React.FC<CustomSearchFilterProps> = ({
   
   const selectedOption = options.find((opt) => opt.value === searchKey);
   const inputType = selectedOption?.type || 'text';
+  // Treat balanceRange the same as priceRange (both are number ranges)
+  const isNumberRange = inputType === 'priceRange' || inputType === 'balanceRange';
 
   return (
     <Paper
@@ -68,7 +75,52 @@ const CustomSearchFilter: React.FC<CustomSearchFilterProps> = ({
         </TextField>
 
         {/* Dynamic Search Input */}
-        {inputType === 'dateRange' ? (
+        {isNumberRange ? (
+          <Box sx={{ display: 'flex', gap: 1, flex: 1, alignItems: 'center' }}>
+            <TextField
+              label={inputType === 'balanceRange' ? 'Min Balance' : 'Min Price'}
+              type="number"
+              size="small"
+              value={
+                searchValue && typeof searchValue === 'object' && 'min' in searchValue
+                  ? searchValue.min || ''
+                  : ''
+              }
+              onChange={(e) => {
+                const currentRange =
+                  searchValue && typeof searchValue === 'object' && 'min' in searchValue
+                    ? (searchValue as PriceRange)
+                    : { min: null, max: null };
+                const minValue = e.target.value === '' ? null : Number(e.target.value);
+                onValueChange({ ...currentRange, min: minValue });
+              }}
+              inputProps={{ min: 0, step: 0.01 }}
+              sx={{ flex: 1 }}
+              placeholder="0.00"
+            />
+            <TextField
+              label={inputType === 'balanceRange' ? 'Max Balance' : 'Max Price'}
+              type="number"
+              size="small"
+              value={
+                searchValue && typeof searchValue === 'object' && 'max' in searchValue
+                  ? searchValue.max || ''
+                  : ''
+              }
+              onChange={(e) => {
+                const currentRange =
+                  searchValue && typeof searchValue === 'object' && 'max' in searchValue
+                    ? (searchValue as PriceRange)
+                    : { min: null, max: null };
+                const maxValue = e.target.value === '' ? null : Number(e.target.value);
+                onValueChange({ ...currentRange, max: maxValue });
+              }}
+              inputProps={{ min: 0, step: 0.01 }}
+              sx={{ flex: 1 }}
+              placeholder="0.00"
+            />
+          </Box>
+        ) : inputType === 'dateRange' ? (
           <Box sx={{ display: 'flex', gap: 1, flex: 1, alignItems: 'center' }}>
             <DatePicker
               label="Start Date"

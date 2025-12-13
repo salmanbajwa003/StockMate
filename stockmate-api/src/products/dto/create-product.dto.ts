@@ -42,6 +42,11 @@ export class CreateProductDto {
   @IsOptional()
   unit?: string;
 
+  @ApiPropertyOptional({ example: 'Additional notes or comments about the product' })
+  @IsString()
+  @IsOptional()
+  comments?: string;
+
   @ApiProperty({
     type: [WarehouseQuantityDto],
     description: 'Array of warehouses with their quantities and units (at least one required)',

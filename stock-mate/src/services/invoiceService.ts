@@ -30,6 +30,7 @@ export interface Invoice {
     name: string;
     email: string;
     phone: string;
+    balance?: number;
   };
   warehouse: {
     id: number;

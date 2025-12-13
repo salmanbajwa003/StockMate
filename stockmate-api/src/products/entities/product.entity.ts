@@ -26,6 +26,9 @@ export class Product extends BaseEntity {
   @Column({ length: 50, nullable: true })
   unit: string;
 
+  @Column({ type: 'text', nullable: true })
+  comments: string;
+
   @OneToMany(() => ProductWarehouse, (productWarehouse) => productWarehouse.product, {
     cascade: true,
   })

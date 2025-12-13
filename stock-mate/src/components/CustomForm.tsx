@@ -336,10 +336,12 @@ const CustomForm = ({
           {fields.map((field, index) => {
             const isSelect = field.options && field.options.length > 0;
             const isDate = field.type === 'date';
+            const isTextarea = field.type === 'textarea';
             // If it's the last field and there's an odd number of fields, make it full width
             const isLastOddField = fields.length % 2 !== 0 && index === fields.length - 1;
             // Use fullWidth property if set, otherwise use the default logic
-            const shouldBeFullWidth = field.fullWidth === true || isLastOddField;
+            // Textarea fields should always be full width
+            const shouldBeFullWidth = field.fullWidth === true || isLastOddField || isTextarea;
             return (
               <Box
                 key={field.key}
@@ -456,7 +458,15 @@ const CustomForm = ({
                 ) : (
                   <TextField
                     label={field.label}
-                    type={field.type === 'number' ? 'text' : field.type || 'text'}
+                    multiline={isTextarea}
+                    rows={isTextarea ? 4 : undefined}
+                    type={
+                      isTextarea
+                        ? undefined
+                        : field.type === 'number'
+                        ? 'text'
+                        : field.type || 'text'
+                    }
                     inputMode={field.type === 'number' ? 'decimal' : undefined}
                     value={
                       field.type === 'number'

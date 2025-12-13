@@ -8,7 +8,7 @@ export interface Column<T = Record<string, unknown>> {
 export interface SearchOption {
   label: string;
   value: string;
-  type?: 'text' | 'date' | 'dateRange';
+  type?: 'text' | 'date' | 'dateRange' | 'priceRange' | 'balanceRange';
 }
 
 // Entity Types - Matching Backend Schema
@@ -23,6 +23,7 @@ export interface Customer {
   driver_name?: string; // Optional
   vehicle_make?: string; // Optional
   driver_no?: string; // Optional
+  balance?: number; // Optional - customer balance
   updatedAt?: string | Date; // Optional - last update timestamp
   [key: string]: unknown; // Index signature for type compatibility
 }
@@ -44,6 +45,7 @@ export interface Product {
   price?: number; // Optional
   weight?: number; // Optional
   unit?: string; // Optional
+  comments?: string; // Optional
   productWarehouses?: Array<{
     quantity: number;
     unit: string;

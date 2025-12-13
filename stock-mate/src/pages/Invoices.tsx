@@ -46,6 +46,11 @@ interface DateRange {
   end: Dayjs | null;
 }
 
+interface BalanceRange {
+  min: number | null;
+  max: number | null;
+}
+
 interface InvoiceItemForm {
   warehouseId: string;
   productId: string;
@@ -63,7 +68,9 @@ const Invoices = () => {
   const [saving, setSaving] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [searchKey, setSearchKey] = useState<string>('invoiceNumber');
-  const [searchValue, setSearchValue] = useState<string | Dayjs | null | DateRange>('');
+  const [searchValue, setSearchValue] = useState<string | Dayjs | null | DateRange | BalanceRange>(
+    '',
+  );
   const [dateFilter, setDateFilter] = useState<string>('all'); // 'all', 'today', 'thisMonth', 'previousMonth'
   const [totalAmount, setTotalAmount] = useState<string>('0.00');
 
@@ -90,6 +97,8 @@ const Invoices = () => {
   // State for Claim/Refund modal
   const [claimRefundModalOpen, setClaimRefundModalOpen] = useState(false);
   const [selectedInvoiceForClaim, setSelectedInvoiceForClaim] = useState<Invoice | null>(null);
+  const [refundQuantities, setRefundQuantities] = useState<Record<number, string>>({});
+  const [refundReason, setRefundReason] = useState<string>('');
 
   // Search options
   const searchOptions: SearchOption[] = useMemo(
@@ -98,6 +107,7 @@ const Invoices = () => {
       { label: 'By Customer', value: 'customerName', type: 'text' },
       { label: 'By Status', value: 'status', type: 'text' },
       { label: 'By Date', value: 'invoiceDate', type: 'dateRange' },
+      { label: 'By Balance', value: 'balance', type: 'balanceRange' },
     ],
     [],
   );
@@ -138,9 +148,12 @@ const Invoices = () => {
   useEffect(() => {
     const selectedOption = searchOptions.find((opt) => opt.value === searchKey);
     const isDateRange = selectedOption?.type === 'dateRange';
+    const isBalanceRange = selectedOption?.type === 'balanceRange';
 
     if (isDateRange) {
       setSearchValue({ start: null, end: null });
+    } else if (isBalanceRange) {
+      setSearchValue({ min: null, max: null });
     } else {
       setSearchValue('');
     }
@@ -178,6 +191,7 @@ const Invoices = () => {
     // Apply search filter if search value exists
     const selectedOption = searchOptions.find((opt) => opt.value === searchKey);
     const isDateRange = selectedOption?.type === 'dateRange';
+    const isBalanceRange = selectedOption?.type === 'balanceRange';
 
     if (isDateRange) {
       // Handle date range search
@@ -204,6 +218,49 @@ const Invoices = () => {
             return invoiceDate.isSameOrAfter(startDate, 'day');
           } else if (endDate) {
             return invoiceDate.isSameOrBefore(endDate, 'day');
+          }
+          return true;
+        });
+      }
+    } else if (isBalanceRange) {
+      // Handle balance range search - filter by customer balance
+      const balanceRange = searchValue as BalanceRange;
+      if (
+        balanceRange &&
+        typeof balanceRange === 'object' &&
+        'min' in balanceRange &&
+        'max' in balanceRange &&
+        (balanceRange.min !== null || balanceRange.max !== null)
+      ) {
+        filtered = filtered.filter((invoice) => {
+          // Get customer balance
+          let customerBalance = 0;
+          if (typeof invoice.customer === 'object' && invoice.customer) {
+            const customer = invoice.customer as { balance?: number };
+            if (customer.balance !== undefined) {
+              customerBalance = Number(customer.balance || 0);
+            } else {
+              // If customer balance is not available, skip this invoice
+              return false;
+            }
+          } else {
+            return false;
+          }
+
+          const minBalance = balanceRange.min;
+          const maxBalance = balanceRange.max;
+
+          // If both min and max are selected
+          if (minBalance !== null && maxBalance !== null) {
+            return customerBalance >= minBalance && customerBalance <= maxBalance;
+          }
+          // If only min balance is selected - filter from min balance onwards
+          else if (minBalance !== null) {
+            return customerBalance >= minBalance;
+          }
+          // If only max balance is selected - filter up to max balance
+          else if (maxBalance !== null) {
+            return customerBalance <= maxBalance;
           }
           return true;
         });
@@ -536,18 +593,105 @@ const Invoices = () => {
       <Button
         size="small"
         variant="outlined"
-        color="secondary"
+        color="primary"
         startIcon={<ReceiptIcon />}
         onClick={(e) => {
           e.stopPropagation();
           setSelectedInvoiceForClaim(invoice);
+          // Initialize refund quantities with 0 (user will enter refund amounts)
+          const initialQuantities: Record<number, string> = {};
+          if (invoice.items) {
+            invoice.items.forEach((_, idx) => {
+              initialQuantities[idx] = '0';
+            });
+          }
+          setRefundQuantities(initialQuantities);
+          setRefundReason('');
           setClaimRefundModalOpen(true);
         }}
         sx={{ minWidth: 'auto', px: 1.5 }}
       >
-        Claim/Refund
+        Refund
       </Button>
     );
+  };
+
+  // Handle Claim/Refund submission
+  const handleClaimRefundSubmit = () => {
+    if (!selectedInvoiceForClaim) return;
+
+    // Check for invalid quantities (refund > original)
+    const invalidItems: string[] = [];
+    selectedInvoiceForClaim.items?.forEach((item, idx) => {
+      const refundQty = Number(refundQuantities[idx] || 0);
+      const originalQty = item.quantity || 0;
+      if (refundQty > originalQty) {
+        const productName =
+          typeof item.product === 'object' ? item.product?.name || 'Item' : 'Item';
+        invalidItems.push(`${productName} (Refund: ${refundQty}, Original: ${originalQty})`);
+      }
+    });
+
+    if (invalidItems.length > 0) {
+      alert(
+        `Invalid refund quantities:\n\n${invalidItems.join(
+          '\n',
+        )}\n\nPlease correct the refund quantities before submitting.`,
+      );
+      return;
+    }
+
+    // Build refund items
+    const refundItems =
+      selectedInvoiceForClaim.items
+        ?.map((item, idx) => {
+          const refundQty = Number(refundQuantities[idx] || 0);
+          const originalQty = item.quantity || 0;
+
+          // Only include items with refund quantity > 0
+          if (refundQty > 0 && refundQty <= originalQty) {
+            return {
+              itemId: item.id,
+              productId: typeof item.product === 'object' ? item.product?.id : null,
+              originalQuantity: originalQty,
+              refundQuantity: refundQty,
+              unit: item.unit || '',
+              unitPrice: item.unitPrice || 0,
+              refundAmount: refundQty * (item.unitPrice || 0),
+            };
+          }
+          return null;
+        })
+        .filter((item) => item !== null) || [];
+
+    // Validate that at least one item has refund quantity
+    if (refundItems.length === 0) {
+      alert('Please specify refund quantities for at least one item.');
+      return;
+    }
+
+    // Build payload
+    const payload = {
+      invoiceId: selectedInvoiceForClaim.id,
+      invoiceNumber: selectedInvoiceForClaim.invoiceNumber || `#${selectedInvoiceForClaim.id}`,
+      customerId:
+        typeof selectedInvoiceForClaim.customer === 'object'
+          ? selectedInvoiceForClaim.customer?.id
+          : null,
+      warehouseId:
+        typeof selectedInvoiceForClaim.warehouse === 'object'
+          ? selectedInvoiceForClaim.warehouse?.id
+          : null,
+      refundItems: refundItems,
+      reason: refundReason || null,
+      totalRefundAmount: refundItems.reduce((sum, item) => sum + (item?.refundAmount || 0), 0),
+    };
+
+    // Show payload in alert (for now, until API is ready)
+    alert(`Claim/Refund Payload:\n\n${JSON.stringify(payload, null, 2)}`);
+
+    // TODO: Make API call when backend is ready
+    // await claimRefundService.submit(payload);
   };
 
   // Generate and download PDF
@@ -757,6 +901,19 @@ const Invoices = () => {
       render: (row: Invoice) => {
         const remaining = Number(row.total || 0) - Number(row.paidAmount || 0);
         return `${remaining.toFixed(2)}`;
+      },
+    },
+    {
+      key: 'totalBalance',
+      label: 'Total Balance',
+      render: (row: Invoice) => {
+        if (typeof row.customer === 'object' && row.customer) {
+          const customer = row.customer as { balance?: number };
+          if (customer.balance !== undefined) {
+            return `${Number(customer.balance || 0).toFixed(2)}`;
+          }
+        }
+        return '-';
       },
     },
     {
@@ -1533,9 +1690,9 @@ const Invoices = () => {
           >
             <DialogTitle id="claim-refund-dialog-title">
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <ReceiptIcon color="secondary" />
+                <ReceiptIcon color="primary" />
                 <Typography variant="h6" component="span">
-                  Claim/Refund Details
+                  Refund Details
                 </Typography>
               </Box>
             </DialogTitle>
@@ -1700,14 +1857,14 @@ const Invoices = () => {
                       </Box>
                     </Box>
 
-                    {/* Invoice Items */}
+                    {/* Invoice Items - Refund Section */}
                     {selectedInvoiceForClaim.items && selectedInvoiceForClaim.items.length > 0 && (
                       <Box>
                         <Typography
                           variant="subtitle2"
                           sx={{ fontWeight: 'bold', mb: 1, color: '#1976d2' }}
                         >
-                          Invoice Items
+                          Select Items for Refund
                         </Typography>
                         <Divider sx={{ mb: 2 }} />
                         <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#fafafa' }}>
@@ -1731,7 +1888,7 @@ const Invoices = () => {
                                       fontSize: '0.875rem',
                                     }}
                                   >
-                                    Quantity
+                                    Original Qty
                                   </th>
                                   <th
                                     style={{
@@ -1758,7 +1915,16 @@ const Invoices = () => {
                                       fontSize: '0.875rem',
                                     }}
                                   >
-                                    Total
+                                    Refund Qty
+                                  </th>
+                                  <th
+                                    style={{
+                                      textAlign: 'right',
+                                      padding: '8px',
+                                      fontSize: '0.875rem',
+                                    }}
+                                  >
+                                    Refund Amount
                                   </th>
                                 </tr>
                               </thead>
@@ -1768,27 +1934,61 @@ const Invoices = () => {
                                     typeof item.product === 'object'
                                       ? item.product?.name || 'N/A'
                                       : item.product || 'N/A';
-                                  const itemTotal = (item.quantity || 0) * (item.unitPrice || 0);
+                                  const originalQty = item.quantity || 0;
+                                  const refundQty = Number(refundQuantities[idx] || 0);
+                                  const unitPrice = item.unitPrice || 0;
+                                  const refundAmount = refundQty * unitPrice;
+                                  const isInvalid = refundQty > originalQty;
+
                                   return (
                                     <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
                                       <td style={{ padding: '8px' }}>{productName}</td>
                                       <td style={{ padding: '8px', textAlign: 'right' }}>
-                                        {item.quantity || 0}
+                                        {originalQty}
                                       </td>
                                       <td style={{ padding: '8px', textAlign: 'center' }}>
                                         {item.unit || '-'}
                                       </td>
                                       <td style={{ padding: '8px', textAlign: 'right' }}>
-                                        {Number(item.unitPrice || 0).toFixed(2)}
+                                        {Number(unitPrice).toFixed(2)}
+                                      </td>
+                                      <td style={{ padding: '8px', textAlign: 'right' }}>
+                                        <TextField
+                                          type="number"
+                                          size="small"
+                                          value={refundQuantities[idx] || ''}
+                                          onChange={(e) => {
+                                            const value = e.target.value;
+                                            setRefundQuantities((prev) => ({
+                                              ...prev,
+                                              [idx]: value,
+                                            }));
+                                          }}
+                                          inputProps={{
+                                            min: 0,
+                                            max: originalQty,
+                                            step: 0.01,
+                                          }}
+                                          error={isInvalid}
+                                          helperText={
+                                            isInvalid
+                                              ? `Cannot exceed ${originalQty}`
+                                              : refundQty > 0
+                                              ? `Refund: ${refundAmount.toFixed(2)}`
+                                              : ''
+                                          }
+                                          sx={{ width: '100px' }}
+                                        />
                                       </td>
                                       <td
                                         style={{
                                           padding: '8px',
                                           textAlign: 'right',
                                           fontWeight: 'bold',
+                                          color: refundQty > 0 ? '#d32f2f' : 'inherit',
                                         }}
                                       >
-                                        {itemTotal.toFixed(2)}
+                                        {refundQty > 0 ? refundAmount.toFixed(2) : '-'}
                                       </td>
                                     </tr>
                                   );
@@ -1799,6 +1999,27 @@ const Invoices = () => {
                         </Paper>
                       </Box>
                     )}
+
+                    {/* Refund Reason */}
+                    <Box>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{ fontWeight: 'bold', mb: 1, color: '#1976d2' }}
+                      >
+                        Refund Reason (Optional)
+                      </Typography>
+                      <Divider sx={{ mb: 2 }} />
+                      <TextField
+                        fullWidth
+                        multiline
+                        rows={3}
+                        placeholder="Enter reason for claim/refund..."
+                        value={refundReason}
+                        onChange={(e) => setRefundReason(e.target.value)}
+                        variant="outlined"
+                        size="small"
+                      />
+                    </Box>
 
                     {/* Notes */}
                     {selectedInvoiceForClaim.notes && (
@@ -1826,11 +2047,26 @@ const Invoices = () => {
                 onClick={() => {
                   setClaimRefundModalOpen(false);
                   setSelectedInvoiceForClaim(null);
+                  setRefundQuantities({});
+                  setRefundReason('');
                 }}
                 color="primary"
-                variant="contained"
               >
-                Close
+                Cancel
+              </Button>
+              <Button
+                onClick={handleClaimRefundSubmit}
+                color="primary"
+                variant="contained"
+                startIcon={<ReceiptIcon />}
+                sx={{
+                  backgroundColor: '#1976d2',
+                  ':hover': {
+                    backgroundColor: '#1565c0',
+                  },
+                }}
+              >
+                Submit
               </Button>
             </DialogActions>
           </Dialog>

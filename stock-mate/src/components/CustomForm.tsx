@@ -338,11 +338,13 @@ const CustomForm = ({
             const isDate = field.type === 'date';
             // If it's the last field and there's an odd number of fields, make it full width
             const isLastOddField = fields.length % 2 !== 0 && index === fields.length - 1;
+            // Use fullWidth property if set, otherwise use the default logic
+            const shouldBeFullWidth = field.fullWidth === true || isLastOddField;
             return (
               <Box
                 key={field.key}
                 sx={{
-                  width: { xs: '100%', sm: isLastOddField ? '100%' : 'calc(50% - 8px)' },
+                  width: { xs: '100%', sm: shouldBeFullWidth ? '100%' : 'calc(50% - 8px)' },
                   boxSizing: 'border-box',
                   flexGrow: 0,
                   flexShrink: 0,

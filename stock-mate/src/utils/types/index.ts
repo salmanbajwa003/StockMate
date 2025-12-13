@@ -112,6 +112,7 @@ export interface FormField {
   required?: boolean; // Whether the field is required (defaults to false)
   disabled?: boolean; // Whether the field is disabled
   readOnly?: boolean; // Whether the field is read-only
+  fullWidth?: boolean; // Whether the field should take full width (defaults to false)
 }
 
 // Auth Types

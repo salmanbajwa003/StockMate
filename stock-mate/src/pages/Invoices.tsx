@@ -8,9 +8,18 @@ import {
   IconButton,
   Chip,
   Autocomplete,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Tooltip,
+  Divider,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import DownloadIcon from '@mui/icons-material/Download';
+import ReceiptIcon from '@mui/icons-material/Receipt';
 import axios from 'axios';
 import dayjs, { Dayjs } from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
@@ -73,6 +82,14 @@ const Invoices = () => {
   const [items, setItems] = useState<InvoiceItemForm[]>([
     { warehouseId: '', productId: '', quantity: '', unit: '', unitPrice: '' },
   ]);
+
+  // State for delete confirmation modal
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<number | null>(null);
+
+  // State for Claim/Refund modal
+  const [claimRefundModalOpen, setClaimRefundModalOpen] = useState(false);
+  const [selectedInvoiceForClaim, setSelectedInvoiceForClaim] = useState<Invoice | null>(null);
 
   // Search options
   const searchOptions: SearchOption[] = useMemo(
@@ -280,24 +297,39 @@ const Invoices = () => {
     calculateTotalAmount(newItems);
   };
 
-  const handleRemoveItem = (index: number) => {
-    const newItems = items.filter((_, i) => i !== index);
-    setItems(newItems);
-    calculateTotalAmount(newItems);
-    // Remove price input for the removed item and reindex remaining items
-    setItemPriceInputs((prev) => {
-      const updated: Record<number, string> = {};
-      Object.keys(prev).forEach((key) => {
-        const keyNum = Number(key);
-        if (keyNum < index) {
-          updated[keyNum] = prev[keyNum];
-        } else if (keyNum > index) {
-          updated[keyNum - 1] = prev[keyNum];
-        }
-        // Skip the removed item (keyNum === index)
+  const handleRemoveItemClick = (index: number) => {
+    setItemToDelete(index);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (itemToDelete !== null) {
+      const index = itemToDelete;
+      const newItems = items.filter((_, i) => i !== index);
+      setItems(newItems);
+      calculateTotalAmount(newItems);
+      // Remove price input for the removed item and reindex remaining items
+      setItemPriceInputs((prev) => {
+        const updated: Record<number, string> = {};
+        Object.keys(prev).forEach((key) => {
+          const keyNum = Number(key);
+          if (keyNum < index) {
+            updated[keyNum] = prev[keyNum];
+          } else if (keyNum > index) {
+            updated[keyNum - 1] = prev[keyNum];
+          }
+          // Skip the removed item (keyNum === index)
+        });
+        return updated;
       });
-      return updated;
-    });
+    }
+    setDeleteConfirmOpen(false);
+    setItemToDelete(null);
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteConfirmOpen(false);
+    setItemToDelete(null);
   };
 
   // Handle form submission (from CustomForm + items)
@@ -482,18 +514,38 @@ const Invoices = () => {
   // Download Button Component (separate component to avoid React hooks issues)
   const DownloadButton = ({ invoice }: { invoice: Invoice }) => {
     return (
+      <Tooltip title="Download Invoice">
+        <IconButton
+          size="small"
+          color="primary"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDownloadPDF(invoice, e);
+          }}
+          sx={{ ml: 0.5 }}
+        >
+          <DownloadIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    );
+  };
+
+  // Claim/Refund Button Component
+  const ClaimRefundButton = ({ invoice }: { invoice: Invoice }) => {
+    return (
       <Button
         size="small"
         variant="outlined"
-        color="primary"
+        color="secondary"
+        startIcon={<ReceiptIcon />}
         onClick={(e) => {
           e.stopPropagation();
-          handleDownloadPDF(invoice, e);
+          setSelectedInvoiceForClaim(invoice);
+          setClaimRefundModalOpen(true);
         }}
-        title="Download PDF"
-        sx={{ minWidth: 'auto', px: 1 }}
+        sx={{ minWidth: 'auto', px: 1.5 }}
       >
-        Download
+        Claim/Refund
       </Button>
     );
   };
@@ -696,7 +748,7 @@ const Invoices = () => {
     },
     {
       key: 'paidAmount',
-      label: 'Paid',
+      label: 'Received',
       render: (row: Invoice) => `${Number(row.paidAmount || 0).toFixed(2)}`,
     },
     {
@@ -735,7 +787,12 @@ const Invoices = () => {
     {
       key: 'actions',
       label: 'Actions',
-      render: (row: Invoice) => <DownloadButton invoice={row} />,
+      render: (row: Invoice) => (
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          <ClaimRefundButton invoice={row} />
+          <DownloadButton invoice={row} />
+        </Box>
+      ),
     },
   ];
 
@@ -748,7 +805,7 @@ const Invoices = () => {
       required: true,
       options: customers.map((customer) => ({ id: customer.id, name: customer.name })),
     },
-    { key: 'paidAmount', label: 'Paid Amount', type: 'number', required: false },
+    { key: 'paidAmount', label: 'Received Amount', type: 'number', required: false },
     { key: 'notes', label: 'Notes', type: 'textarea', required: false },
   ];
 
@@ -1072,7 +1129,7 @@ const Invoices = () => {
                       key={index}
                       sx={{
                         display: 'flex',
-                        flexWrap: 'wrap',
+                        flexDirection: 'column',
                         gap: 1,
                         mb: 2,
                         p: 2,
@@ -1081,267 +1138,315 @@ const Invoices = () => {
                         backgroundColor: '#ffffff',
                       }}
                     >
-                      <Autocomplete
-                        options={products}
-                        getOptionLabel={(option) => option.name}
-                        isOptionEqualToValue={(option, value) => option.id === value.id}
-                        value={products.find((p) => p.id === Number(item.productId)) || null}
-                        onChange={(_, newValue) => {
-                          handleItemChange(index, 'productId', newValue ? String(newValue.id) : '');
-                        }}
-                        filterOptions={(options, { inputValue }) => {
-                          return options.filter((option) =>
-                            option.name.toLowerCase().startsWith(inputValue.toLowerCase()),
-                          );
-                        }}
-                        disabled={saving}
-                        size="small"
-                        fullWidth
-                        renderInput={(params) => <TextField {...params} label="Product" required />}
-                      />
-                      <Autocomplete
-                        options={availableWarehousesForItem}
-                        getOptionLabel={(option) => `${option.warehouse.name}`}
-                        isOptionEqualToValue={(option, value) =>
-                          option.warehouse.id === value.warehouse.id
-                        }
-                        value={
-                          availableWarehousesForItem.find(
-                            (pw) => pw.warehouse.id === Number(item.warehouseId),
-                          ) || null
-                        }
-                        onChange={(_, newValue) => {
-                          handleItemChange(
-                            index,
-                            'warehouseId',
-                            newValue ? String(newValue.warehouse.id) : '',
-                          );
-                        }}
-                        filterOptions={(options, { inputValue }) => {
-                          return options.filter((option) =>
-                            option.warehouse.name
-                              .toLowerCase()
-                              .startsWith(inputValue.toLowerCase()),
-                          );
-                        }}
-                        disabled={!item.productId || saving}
-                        size="small"
-                        fullWidth
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="Warehouse"
-                            required
-                            placeholder={
-                              item.productId
-                                ? 'No warehouses available for this product'
-                                : 'Select product first'
-                            }
+                      {/* Row 1: Product & Warehouse */}
+                      <Box sx={{ display: 'flex', gap: 1, width: '100%' }}>
+                        <Box sx={{ width: 'calc(50% - 4px)', flexShrink: 0 }}>
+                          <Autocomplete
+                            options={products}
+                            getOptionLabel={(option) => option.name}
+                            isOptionEqualToValue={(option, value) => option.id === value.id}
+                            value={products.find((p) => p.id === Number(item.productId)) || null}
+                            onChange={(_, newValue) => {
+                              handleItemChange(
+                                index,
+                                'productId',
+                                newValue ? String(newValue.id) : '',
+                              );
+                            }}
+                            filterOptions={(options, { inputValue }) => {
+                              return options.filter((option) =>
+                                option.name.toLowerCase().startsWith(inputValue.toLowerCase()),
+                              );
+                            }}
+                            disabled={saving}
+                            size="small"
+                            fullWidth
+                            renderInput={(params) => (
+                              <TextField {...params} label="Product" required />
+                            )}
                           />
-                        )}
-                      />
-                      <TextField
-                        label="Quantity"
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                        required
-                        size="small"
-                        fullWidth
-                        disabled={saving}
-                        inputProps={{ min: 1, step: 0.01 }}
-                        helperText={
-                          item.productId
-                            ? `Product Weight: ${getProductWeight(item.productId) || 'N/A'}`
-                            : ''
-                        }
-                        error={
-                          !!(
-                            item.productId &&
-                            item.quantity &&
-                            getProductWeight(item.productId) > 0 &&
-                            Number(item.quantity) > getProductWeight(item.productId)
-                          )
-                        }
-                      />
-                      <Autocomplete
-                        options={(() => {
-                          if (!item.productId) return [];
-                          const product = products.find((p) => p.id === Number(item.productId));
-                          const productUnit = product?.unit || '';
-                          return productUnit ? [productUnit] : [];
-                        })()}
-                        getOptionLabel={(option) => String(option)}
-                        isOptionEqualToValue={(option, value) => option === value}
-                        value={item.unit || null}
-                        onChange={(_, newValue) => {
-                          handleItemChange(index, 'unit', newValue || '');
-                        }}
-                        filterOptions={(options, { inputValue }) => {
-                          return options.filter((option) =>
-                            String(option).toLowerCase().startsWith(inputValue.toLowerCase()),
-                          );
-                        }}
-                        disabled={!item.productId || saving}
-                        size="small"
-                        fullWidth
-                        renderInput={(params) => (
+                        </Box>
+                        <Box sx={{ width: 'calc(50% - 4px)', flexShrink: 0 }}>
+                          <Autocomplete
+                            options={availableWarehousesForItem}
+                            getOptionLabel={(option) => `${option.warehouse.name}`}
+                            isOptionEqualToValue={(option, value) =>
+                              option.warehouse.id === value.warehouse.id
+                            }
+                            value={
+                              availableWarehousesForItem.find(
+                                (pw) => pw.warehouse.id === Number(item.warehouseId),
+                              ) || null
+                            }
+                            onChange={(_, newValue) => {
+                              handleItemChange(
+                                index,
+                                'warehouseId',
+                                newValue ? String(newValue.warehouse.id) : '',
+                              );
+                            }}
+                            filterOptions={(options, { inputValue }) => {
+                              return options.filter((option) =>
+                                option.warehouse.name
+                                  .toLowerCase()
+                                  .startsWith(inputValue.toLowerCase()),
+                              );
+                            }}
+                            disabled={!item.productId || saving}
+                            size="small"
+                            fullWidth
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                label="Warehouse"
+                                required
+                                placeholder={
+                                  item.productId
+                                    ? 'No warehouses available for this product'
+                                    : 'Select product first'
+                                }
+                              />
+                            )}
+                          />
+                        </Box>
+                      </Box>
+
+                      {/* Row 2: Quantity and Unit */}
+                      <Box sx={{ display: 'flex', gap: 1, width: '100%' }}>
+                        <Box sx={{ width: 'calc(50% - 4px)', flexShrink: 0 }}>
                           <TextField
-                            {...params}
-                            label="Unit"
+                            label="Quantity"
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
                             required
+                            size="small"
+                            fullWidth
+                            disabled={saving}
+                            inputProps={{ min: 1, step: 0.01 }}
                             helperText={
                               item.productId
-                                ? item.unit
-                                  ? `Auto-selected from product: ${item.unit}`
-                                  : 'Unit will be auto-filled from product'
-                                : 'Select product first'
+                                ? `Available Stock: ${getProductWeight(item.productId) || 'N/A'}`
+                                : ''
+                            }
+                            error={
+                              !!(
+                                item.productId &&
+                                item.quantity &&
+                                getProductWeight(item.productId) > 0 &&
+                                Number(item.quantity) > getProductWeight(item.productId)
+                              )
                             }
                           />
-                        )}
-                      />
-                      <TextField
-                        label="Price Per Unit"
-                        type="text"
-                        inputMode="decimal"
-                        value={
-                          itemPriceInputs[index] ??
-                          (item.unitPrice ? String(item.unitPrice).replace(/,/g, '.') : '')
-                        }
-                        onChange={(e) => {
-                          // Replace all commas with dots for decimal input
-                          let normalizedValue = e.target.value.replace(/,/g, '.');
-                          // Remove any non-numeric characters except dot
-                          normalizedValue = normalizedValue.replace(/[^0-9.]/g, '');
-                          // Ensure only one dot for decimal
-                          const parts = normalizedValue.split('.');
-                          if (parts.length > 2) {
-                            normalizedValue = parts[0] + '.' + parts.slice(1).join('');
+                        </Box>
+                        <Box sx={{ width: 'calc(50% - 4px)', flexShrink: 0 }}>
+                          <Autocomplete
+                            options={(() => {
+                              if (!item.productId) return [];
+                              const product = products.find((p) => p.id === Number(item.productId));
+                              const productUnit = product?.unit || '';
+
+                              if (!productUnit) return [];
+
+                              // If unit is kg, only show kg
+                              if (productUnit.toLowerCase() === 'kg') {
+                                return ['kg'];
+                              }
+
+                              // If unit is meter or yard, show both options
+                              if (
+                                productUnit.toLowerCase() === 'meter' ||
+                                productUnit.toLowerCase() === 'yard'
+                              ) {
+                                return ['meter', 'yard'];
+                              }
+
+                              // For any other unit, return the product unit as is
+                              return [productUnit];
+                            })()}
+                            getOptionLabel={(option) => String(option)}
+                            isOptionEqualToValue={(option, value) => option === value}
+                            value={item.unit || null}
+                            onChange={(_, newValue) => {
+                              handleItemChange(index, 'unit', newValue || '');
+                            }}
+                            filterOptions={(options, { inputValue }) => {
+                              return options.filter((option) =>
+                                String(option).toLowerCase().startsWith(inputValue.toLowerCase()),
+                              );
+                            }}
+                            disabled={!item.productId || saving}
+                            size="small"
+                            fullWidth
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                label="Unit"
+                                required
+                                // helperText={
+                                //   item.productId
+                                //     ? item.unit
+                                //       ? `Auto-selected from product: ${item.unit}`
+                                //       : 'Unit will be auto-filled from product'
+                                //     : 'Select product first'
+                                // }
+                              />
+                            )}
+                          />
+                        </Box>
+                      </Box>
+
+                      {/* Row 3: Price */}
+                      <Box sx={{ width: '100%' }}>
+                        <TextField
+                          label="Price Per Unit"
+                          type="text"
+                          inputMode="decimal"
+                          value={
+                            itemPriceInputs[index] ??
+                            (item.unitPrice ? String(item.unitPrice).replace(/,/g, '.') : '')
                           }
-                          // Limit decimal places to 2 while typing
-                          if (normalizedValue.includes('.')) {
-                            const [integerPart, decimalPart] = normalizedValue.split('.');
-                            if (decimalPart && decimalPart.length > 2) {
-                              normalizedValue = integerPart + '.' + decimalPart.substring(0, 2);
+                          onChange={(e) => {
+                            // Replace all commas with dots for decimal input
+                            let normalizedValue = e.target.value.replace(/,/g, '.');
+                            // Remove any non-numeric characters except dot
+                            normalizedValue = normalizedValue.replace(/[^0-9.]/g, '');
+                            // Ensure only one dot for decimal
+                            const parts = normalizedValue.split('.');
+                            if (parts.length > 2) {
+                              normalizedValue = parts[0] + '.' + parts.slice(1).join('');
                             }
-                          }
-                          // Store raw input string for display
-                          setItemPriceInputs((prev) => ({ ...prev, [index]: normalizedValue }));
-                          // Store numeric value in items for calculation
-                          if (normalizedValue === '' || normalizedValue === '.') {
-                            handleItemChange(index, 'unitPrice', '');
-                          } else {
-                            const numValue = Number(normalizedValue);
-                            handleItemChange(
-                              index,
-                              'unitPrice',
-                              isNaN(numValue) ? '0' : String(numValue),
-                            );
-                          }
-                        }}
-                        onKeyPress={(e) => {
-                          // Prevent non-numeric input for number fields
-                          const char = e.key;
-                          const allowedKeys = [
-                            '0',
-                            '1',
-                            '2',
-                            '3',
-                            '4',
-                            '5',
-                            '6',
-                            '7',
-                            '8',
-                            '9',
-                            '.',
-                            'Backspace',
-                            'Delete',
-                            'ArrowLeft',
-                            'ArrowRight',
-                            'ArrowUp',
-                            'ArrowDown',
-                            'Tab',
-                            'Enter',
-                          ];
-                          // Allow control keys (Ctrl, Alt, Meta, etc.)
-                          if (e.ctrlKey || e.metaKey || e.altKey) {
-                            return;
-                          }
-                          // Check if the key is allowed
-                          if (
-                            !allowedKeys.includes(char) &&
-                            !e.ctrlKey &&
-                            !e.metaKey &&
-                            !e.altKey
-                          ) {
-                            e.preventDefault();
-                          }
-                          // Prevent multiple decimal points
-                          if (
-                            char === '.' &&
-                            (e.currentTarget as HTMLInputElement).value.includes('.')
-                          ) {
-                            e.preventDefault();
-                          }
-                        }}
-                        onPaste={(e) => {
-                          // Handle paste for number fields - filter out non-numeric characters
-                          e.preventDefault();
-                          const pastedText = e.clipboardData.getData('text');
-                          // Replace commas with dots and remove non-numeric characters
-                          let normalizedValue = pastedText.replace(/,/g, '.');
-                          normalizedValue = normalizedValue.replace(/[^0-9.]/g, '');
-                          // Ensure only one dot
-                          const parts = normalizedValue.split('.');
-                          if (parts.length > 2) {
-                            normalizedValue = parts[0] + '.' + parts.slice(1).join('');
-                          }
-                          // Limit decimal places to 2
-                          if (normalizedValue.includes('.')) {
-                            const [integerPart, decimalPart] = normalizedValue.split('.');
-                            if (decimalPart && decimalPart.length > 2) {
-                              normalizedValue = integerPart + '.' + decimalPart.substring(0, 2);
+                            // Limit decimal places to 2 while typing
+                            if (normalizedValue.includes('.')) {
+                              const [integerPart, decimalPart] = normalizedValue.split('.');
+                              if (decimalPart && decimalPart.length > 2) {
+                                normalizedValue = integerPart + '.' + decimalPart.substring(0, 2);
+                              }
                             }
-                          }
-                          setItemPriceInputs((prev) => ({ ...prev, [index]: normalizedValue }));
-                          const value = Number(normalizedValue) || 0;
-                          handleItemChange(index, 'unitPrice', String(value));
-                        }}
-                        onBlur={() => {
-                          // Format to 2 decimal places when field loses focus
-                          const currentInput = itemPriceInputs[index] || '';
-                          if (currentInput === '' || currentInput === '.') {
-                            setItemPriceInputs((prev) => {
-                              const updated = { ...prev };
-                              delete updated[index];
-                              return updated;
-                            });
-                            handleItemChange(index, 'unitPrice', '');
-                          } else {
-                            const normalizedValue = currentInput.replace(/,/g, '.');
-                            const numValue = Number(normalizedValue) || 0;
-                            // Format to 2 decimal places
-                            const formatted = numValue.toFixed(2);
-                            setItemPriceInputs((prev) => ({ ...prev, [index]: formatted }));
-                            handleItemChange(index, 'unitPrice', formatted);
-                          }
-                        }}
-                        required
-                        size="small"
-                        fullWidth
-                        disabled={saving}
-                        placeholder="0.00"
-                      />
-                      {items.length > 1 && (
-                        <IconButton
-                          onClick={() => handleRemoveItem(index)}
-                          color="error"
+                            // Store raw input string for display
+                            setItemPriceInputs((prev) => ({ ...prev, [index]: normalizedValue }));
+                            // Store numeric value in items for calculation
+                            if (normalizedValue === '' || normalizedValue === '.') {
+                              handleItemChange(index, 'unitPrice', '');
+                            } else {
+                              const numValue = Number(normalizedValue);
+                              handleItemChange(
+                                index,
+                                'unitPrice',
+                                isNaN(numValue) ? '0' : String(numValue),
+                              );
+                            }
+                          }}
+                          onKeyPress={(e) => {
+                            // Prevent non-numeric input for number fields
+                            const char = e.key;
+                            const allowedKeys = [
+                              '0',
+                              '1',
+                              '2',
+                              '3',
+                              '4',
+                              '5',
+                              '6',
+                              '7',
+                              '8',
+                              '9',
+                              '.',
+                              'Backspace',
+                              'Delete',
+                              'ArrowLeft',
+                              'ArrowRight',
+                              'ArrowUp',
+                              'ArrowDown',
+                              'Tab',
+                              'Enter',
+                            ];
+                            // Allow control keys (Ctrl, Alt, Meta, etc.)
+                            if (e.ctrlKey || e.metaKey || e.altKey) {
+                              return;
+                            }
+                            // Check if the key is allowed
+                            if (
+                              !allowedKeys.includes(char) &&
+                              !e.ctrlKey &&
+                              !e.metaKey &&
+                              !e.altKey
+                            ) {
+                              e.preventDefault();
+                            }
+                            // Prevent multiple decimal points
+                            if (
+                              char === '.' &&
+                              (e.currentTarget as HTMLInputElement).value.includes('.')
+                            ) {
+                              e.preventDefault();
+                            }
+                          }}
+                          onPaste={(e) => {
+                            // Handle paste for number fields - filter out non-numeric characters
+                            e.preventDefault();
+                            const pastedText = e.clipboardData.getData('text');
+                            // Replace commas with dots and remove non-numeric characters
+                            let normalizedValue = pastedText.replace(/,/g, '.');
+                            normalizedValue = normalizedValue.replace(/[^0-9.]/g, '');
+                            // Ensure only one dot
+                            const parts = normalizedValue.split('.');
+                            if (parts.length > 2) {
+                              normalizedValue = parts[0] + '.' + parts.slice(1).join('');
+                            }
+                            // Limit decimal places to 2
+                            if (normalizedValue.includes('.')) {
+                              const [integerPart, decimalPart] = normalizedValue.split('.');
+                              if (decimalPart && decimalPart.length > 2) {
+                                normalizedValue = integerPart + '.' + decimalPart.substring(0, 2);
+                              }
+                            }
+                            setItemPriceInputs((prev) => ({ ...prev, [index]: normalizedValue }));
+                            const value = Number(normalizedValue) || 0;
+                            handleItemChange(index, 'unitPrice', String(value));
+                          }}
+                          onBlur={() => {
+                            // Format to 2 decimal places when field loses focus
+                            const currentInput = itemPriceInputs[index] || '';
+                            if (currentInput === '' || currentInput === '.') {
+                              setItemPriceInputs((prev) => {
+                                const updated = { ...prev };
+                                delete updated[index];
+                                return updated;
+                              });
+                              handleItemChange(index, 'unitPrice', '');
+                            } else {
+                              const normalizedValue = currentInput.replace(/,/g, '.');
+                              const numValue = Number(normalizedValue) || 0;
+                              // Format to 2 decimal places
+                              const formatted = numValue.toFixed(2);
+                              setItemPriceInputs((prev) => ({ ...prev, [index]: formatted }));
+                              handleItemChange(index, 'unitPrice', formatted);
+                            }
+                          }}
+                          required
                           size="small"
+                          fullWidth
                           disabled={saving}
-                          sx={{ alignSelf: 'center' }}
+                          placeholder="0.00"
+                        />
+                      </Box>
+
+                      {/* Delete Button Row - Bottom of block */}
+                      {items.length > 1 && (
+                        <Box
+                          sx={{ display: 'flex', justifyContent: 'flex-end', width: '100%', mt: 1 }}
                         >
-                          <DeleteIcon />
-                        </IconButton>
+                          <IconButton
+                            onClick={() => handleRemoveItemClick(index)}
+                            color="error"
+                            size="small"
+                            disabled={saving}
+                            sx={{ alignSelf: 'flex-end' }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Box>
                       )}
                     </Box>
                   );
@@ -1391,6 +1496,344 @@ const Invoices = () => {
               </Box>
             </Box>
           </Paper>
+
+          {/* Delete Confirmation Dialog */}
+          <Dialog
+            open={deleteConfirmOpen}
+            onClose={handleCancelDelete}
+            aria-labelledby="delete-dialog-title"
+            aria-describedby="delete-dialog-description"
+          >
+            <DialogTitle id="delete-dialog-title">Confirm Deletion</DialogTitle>
+            <DialogContent>
+              <DialogContentText id="delete-dialog-description">
+                Are you sure you want to delete/remove the item?
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleCancelDelete} color="primary">
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmDelete} color="error" variant="contained" autoFocus>
+                Delete
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Claim/Refund Modal */}
+          <Dialog
+            open={claimRefundModalOpen}
+            onClose={() => {
+              setClaimRefundModalOpen(false);
+              setSelectedInvoiceForClaim(null);
+            }}
+            maxWidth="md"
+            fullWidth
+            aria-labelledby="claim-refund-dialog-title"
+          >
+            <DialogTitle id="claim-refund-dialog-title">
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ReceiptIcon color="secondary" />
+                <Typography variant="h6" component="span">
+                  Claim/Refund Details
+                </Typography>
+              </Box>
+            </DialogTitle>
+            <DialogContent>
+              {selectedInvoiceForClaim && (
+                <Box sx={{ mt: 1 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {/* Invoice Basic Information */}
+                    <Box>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{ fontWeight: 'bold', mb: 1, color: '#1976d2' }}
+                      >
+                        Invoice Information
+                      </Typography>
+                      <Divider sx={{ mb: 2 }} />
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                        <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: '200px' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Invoice Number
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            {selectedInvoiceForClaim.invoiceNumber ||
+                              `#${selectedInvoiceForClaim.id}`}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: '200px' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Invoice Date
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            {selectedInvoiceForClaim.invoiceDate
+                              ? dayjs(selectedInvoiceForClaim.invoiceDate).format('DD-MM-YYYY')
+                              : '-'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: '200px' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Status
+                          </Typography>
+                          <Box sx={{ mt: 0.5 }}>
+                            <Chip
+                              label={
+                                selectedInvoiceForClaim.status
+                                  ? selectedInvoiceForClaim.status.charAt(0).toUpperCase() +
+                                    selectedInvoiceForClaim.status.slice(1)
+                                  : 'Pending'
+                              }
+                              color={
+                                selectedInvoiceForClaim.status === 'paid' ? 'success' : 'warning'
+                              }
+                              size="small"
+                            />
+                          </Box>
+                        </Box>
+                        <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: '200px' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Warehouse
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            {typeof selectedInvoiceForClaim.warehouse === 'object'
+                              ? selectedInvoiceForClaim.warehouse?.name || '-'
+                              : selectedInvoiceForClaim.warehouse || '-'}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+
+                    {/* Customer Information */}
+                    <Box>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{ fontWeight: 'bold', mb: 1, color: '#1976d2' }}
+                      >
+                        Customer Information
+                      </Typography>
+                      <Divider sx={{ mb: 2 }} />
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                        <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: '200px' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Customer Name
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            {typeof selectedInvoiceForClaim.customer === 'object'
+                              ? selectedInvoiceForClaim.customer?.name || '-'
+                              : selectedInvoiceForClaim.customer || '-'}
+                          </Typography>
+                        </Box>
+                        {typeof selectedInvoiceForClaim.customer === 'object' &&
+                          selectedInvoiceForClaim.customer?.phone && (
+                            <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: '200px' }}>
+                              <Typography variant="caption" color="text.secondary">
+                                Phone
+                              </Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                                {selectedInvoiceForClaim.customer.phone}
+                              </Typography>
+                            </Box>
+                          )}
+                        {typeof selectedInvoiceForClaim.customer === 'object' &&
+                          selectedInvoiceForClaim.customer?.email && (
+                            <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: '200px' }}>
+                              <Typography variant="caption" color="text.secondary">
+                                Email
+                              </Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                                {selectedInvoiceForClaim.customer.email}
+                              </Typography>
+                            </Box>
+                          )}
+                      </Box>
+                    </Box>
+
+                    {/* Financial Information */}
+                    <Box>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{ fontWeight: 'bold', mb: 1, color: '#1976d2' }}
+                      >
+                        Financial Information
+                      </Typography>
+                      <Divider sx={{ mb: 2 }} />
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                        <Box sx={{ flex: '1 1 calc(33.33% - 16px)', minWidth: '150px' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Total Amount
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                            {Number(selectedInvoiceForClaim.total || 0).toFixed(2)}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ flex: '1 1 calc(33.33% - 16px)', minWidth: '150px' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Paid Amount
+                          </Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                            {Number(selectedInvoiceForClaim.paidAmount || 0).toFixed(2)}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ flex: '1 1 calc(33.33% - 16px)', minWidth: '150px' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Remaining Amount
+                          </Typography>
+                          <Typography
+                            variant="body1"
+                            sx={{
+                              fontWeight: 'bold',
+                              color:
+                                Number(selectedInvoiceForClaim.total || 0) -
+                                  Number(selectedInvoiceForClaim.paidAmount || 0) >
+                                0
+                                  ? '#d32f2f'
+                                  : '#2e7d32',
+                            }}
+                          >
+                            {(
+                              Number(selectedInvoiceForClaim.total || 0) -
+                              Number(selectedInvoiceForClaim.paidAmount || 0)
+                            ).toFixed(2)}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+
+                    {/* Invoice Items */}
+                    {selectedInvoiceForClaim.items && selectedInvoiceForClaim.items.length > 0 && (
+                      <Box>
+                        <Typography
+                          variant="subtitle2"
+                          sx={{ fontWeight: 'bold', mb: 1, color: '#1976d2' }}
+                        >
+                          Invoice Items
+                        </Typography>
+                        <Divider sx={{ mb: 2 }} />
+                        <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#fafafa' }}>
+                          <Box sx={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ borderBottom: '2px solid #e0e0e0' }}>
+                                  <th
+                                    style={{
+                                      textAlign: 'left',
+                                      padding: '8px',
+                                      fontSize: '0.875rem',
+                                    }}
+                                  >
+                                    Product
+                                  </th>
+                                  <th
+                                    style={{
+                                      textAlign: 'right',
+                                      padding: '8px',
+                                      fontSize: '0.875rem',
+                                    }}
+                                  >
+                                    Quantity
+                                  </th>
+                                  <th
+                                    style={{
+                                      textAlign: 'center',
+                                      padding: '8px',
+                                      fontSize: '0.875rem',
+                                    }}
+                                  >
+                                    Unit
+                                  </th>
+                                  <th
+                                    style={{
+                                      textAlign: 'right',
+                                      padding: '8px',
+                                      fontSize: '0.875rem',
+                                    }}
+                                  >
+                                    Unit Price
+                                  </th>
+                                  <th
+                                    style={{
+                                      textAlign: 'right',
+                                      padding: '8px',
+                                      fontSize: '0.875rem',
+                                    }}
+                                  >
+                                    Total
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedInvoiceForClaim.items.map((item, idx) => {
+                                  const productName =
+                                    typeof item.product === 'object'
+                                      ? item.product?.name || 'N/A'
+                                      : item.product || 'N/A';
+                                  const itemTotal = (item.quantity || 0) * (item.unitPrice || 0);
+                                  return (
+                                    <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                                      <td style={{ padding: '8px' }}>{productName}</td>
+                                      <td style={{ padding: '8px', textAlign: 'right' }}>
+                                        {item.quantity || 0}
+                                      </td>
+                                      <td style={{ padding: '8px', textAlign: 'center' }}>
+                                        {item.unit || '-'}
+                                      </td>
+                                      <td style={{ padding: '8px', textAlign: 'right' }}>
+                                        {Number(item.unitPrice || 0).toFixed(2)}
+                                      </td>
+                                      <td
+                                        style={{
+                                          padding: '8px',
+                                          textAlign: 'right',
+                                          fontWeight: 'bold',
+                                        }}
+                                      >
+                                        {itemTotal.toFixed(2)}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </Box>
+                        </Paper>
+                      </Box>
+                    )}
+
+                    {/* Notes */}
+                    {selectedInvoiceForClaim.notes && (
+                      <Box>
+                        <Typography
+                          variant="subtitle2"
+                          sx={{ fontWeight: 'bold', mb: 1, color: '#1976d2' }}
+                        >
+                          Notes
+                        </Typography>
+                        <Divider sx={{ mb: 2 }} />
+                        <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#fafafa' }}>
+                          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                            {selectedInvoiceForClaim.notes}
+                          </Typography>
+                        </Paper>
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button
+                onClick={() => {
+                  setClaimRefundModalOpen(false);
+                  setSelectedInvoiceForClaim(null);
+                }}
+                color="primary"
+                variant="contained"
+              >
+                Close
+              </Button>
+            </DialogActions>
+          </Dialog>
         </Box>
 
         {/* Right Side - Table (70%) */}

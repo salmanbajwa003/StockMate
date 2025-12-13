@@ -401,12 +401,14 @@ const Products = () => {
   // Required fields: fabricId, colorId
   // Optional fields: price, weight, unit
   // Note: Product name is auto-generated from color + fabric and not shown in form
+  // Layout: Warehouse (full width), Fabric & Color (same row), Quantity & Unit (same row), Price (full width)
   const fields: FormField[] = [
     {
       key: 'warehouseId',
       label: 'Warehouse',
       type: 'select',
       required: true,
+      fullWidth: true,
       options: warehouses?.map((warehouse) => ({ id: warehouse.id, name: warehouse.name })) || [],
     },
     {
@@ -423,7 +425,6 @@ const Products = () => {
       required: true,
       options: colors.map((color) => ({ id: color.id, name: color.name })),
     },
-    { key: 'price', label: 'Price', type: 'number', required: false },
     { key: 'weight', label: 'Quantity', type: 'number', required: false },
     {
       key: 'unit',
@@ -432,6 +433,7 @@ const Products = () => {
       required: false,
       options: ['meter', 'yard', 'kg'],
     },
+    { key: 'price', label: 'Price', type: 'number', required: false, fullWidth: true },
   ];
 
   return (

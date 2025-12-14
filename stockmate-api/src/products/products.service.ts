@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, DataSource } from 'typeorm';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
@@ -21,6 +21,7 @@ export class ProductsService {
     private warehouseRepository: Repository<Warehouse>,
     private fabricsService: FabricsService,
     private colorsService: ColorsService,
+    private dataSource: DataSource,
   ) {}
 
   async create(createProductDto: CreateProductDto): Promise<Product> {
@@ -111,49 +112,49 @@ export class ProductsService {
     }
 
     // Update warehouse quantities if provided
-    if (warehouseQuantities !== undefined) {
-      // Remove existing warehouse associations
-      await this.productWarehouseRepository.delete({ product: { id } });
+    if (warehouseQuantities !== undefined && warehouseQuantities.length) {
+      const warehouseIds = warehouseQuantities.map((wq) => wq.warehouseId);
+      const warehouses = await this.warehouseRepository.find({
+        where: { id: In(warehouseIds) },
+      });
 
-      // Add new warehouse associations
-      if (warehouseQuantities.length > 0) {
-        const warehouseIds = warehouseQuantities.map((wq) => wq.warehouseId);
-        const warehouses = await this.warehouseRepository.find({
-          where: { id: In(warehouseIds) },
-        });
+      if (warehouses.length !== warehouseIds.length) {
+        throw new NotFoundException('One or more warehouses not found');
+      }
 
-        if (warehouses.length !== warehouseIds.length) {
-          throw new NotFoundException('One or more warehouses not found');
+      // Create ProductWarehouse entries with conversions
+      for (let i = 0; i < warehouseQuantities.length; i++) {
+        const wq = warehouseQuantities[i];
+        const warehouse = warehouses.find((w) => w.id === wq.warehouseId);
+
+        // Apply conversion rules: Meter → Yard, Yard → Yard, Kg → Kg
+        const conversion = convertProductUnit(wq.quantity, wq.unit);
+
+        // Log conversion for tracking
+        if (conversion.conversionApplied) {
+          console.log(
+            `[${warehouse.name}] Unit conversion: ${conversion.originalValue} ${conversion.originalUnit} → ${conversion.value} ${conversion.unit}`,
+          );
         }
 
-        // Create ProductWarehouse entries with conversions
-        warehouseQuantities.forEach((wq) => {
-          const warehouse = warehouses.find((w) => w.id === wq.warehouseId);
-
-          // Apply conversion rules: Meter → Yard, Yard → Yard, Kg → Kg
-          const conversion = convertProductUnit(wq.quantity, wq.unit);
-
-          // Log conversion for tracking
-          if (conversion.conversionApplied) {
-            console.log(
-              `[${warehouse.name}] Unit conversion: ${conversion.originalValue} ${conversion.originalUnit} → ${conversion.value} ${conversion.unit}`,
-            );
-          }
-
-          return this.productWarehouseRepository.update(
-            { product: { id } },
-            {
-              warehouse,
-              quantity: conversion.value,
-              unit: conversion.unit,
-            },
-          );
-        });
+        console.log('THE WAREHOUSE', warehouse);
+        await this.productWarehouseRepository.update(
+          { product: { id } },
+          {
+            warehouse,
+            quantity: conversion.value,
+            unit: conversion.unit,
+          },
+        );
       }
     }
 
     Object.assign(product, productData);
-    await this.productRepository.save(product);
+    this.productRepository.update(
+      { id },
+      { fabric: product.fabric, color: product.color, ...productData },
+    );
+    // await this.productRepository.save(product);
 
     return this.findOne(id);
   }

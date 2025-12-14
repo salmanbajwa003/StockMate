@@ -38,6 +38,8 @@ import { productService } from '../services/productService';
 import type { Product } from '../utils/types';
 import { customerService } from '../services/customerService';
 import type { Customer } from '../services/customerService';
+import { refundService } from '../services/refundService';
+import type { CreateRefundData } from '../services/refundService';
 
 const API_URL = API_ENDPOINTS.INVOICES;
 
@@ -67,7 +69,7 @@ const Invoices = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [searchKey, setSearchKey] = useState<string>('invoiceNumber');
+  const [searchKey, setSearchKey] = useState<string>('id');
   const [searchValue, setSearchValue] = useState<string | Dayjs | null | DateRange | BalanceRange>(
     '',
   );
@@ -101,9 +103,42 @@ const Invoices = () => {
   const [refundReason, setRefundReason] = useState<string>('');
 
   // Search options
+  // Calculate total received per customer (grouped by customer)
+  const totalReceivedPerCustomer = useMemo(() => {
+    const customerTotals = new Map<number, number>();
+
+    invoices.forEach((invoice) => {
+      const customerId = typeof invoice.customer === 'object' ? invoice.customer?.id : null;
+      if (customerId) {
+        const currentTotal = customerTotals.get(customerId) || 0;
+        const paidAmount = Number(invoice.paidAmount || 0);
+        customerTotals.set(customerId, currentTotal + paidAmount);
+      }
+    });
+
+    return customerTotals;
+  }, [invoices]);
+
+  // Calculate total balance per customer (grouped by customer)
+  // Total Balance = sum of all invoices' total for a customer
+  const totalBalancePerCustomer = useMemo(() => {
+    const customerBalances = new Map<number, number>();
+
+    invoices.forEach((invoice) => {
+      const customerId = typeof invoice.customer === 'object' ? invoice.customer?.id : null;
+      if (customerId) {
+        const currentBalance = customerBalances.get(customerId) || 0;
+        const total = Number(invoice.total || 0);
+        customerBalances.set(customerId, currentBalance + total);
+      }
+    });
+
+    return customerBalances;
+  }, [invoices]);
+
   const searchOptions: SearchOption[] = useMemo(
     () => [
-      { label: 'By Invoice Number', value: 'invoiceNumber', type: 'text' },
+      { label: 'By Invoice ID', value: 'id', type: 'text' },
       { label: 'By Customer', value: 'customerName', type: 'text' },
       { label: 'By Status', value: 'status', type: 'text' },
       { label: 'By Date', value: 'invoiceDate', type: 'dateRange' },
@@ -589,14 +624,20 @@ const Invoices = () => {
 
   // Claim/Refund Button Component
   const ClaimRefundButton = ({ invoice }: { invoice: Invoice }) => {
+    // Disable refund button if invoice has no received amount
+    const paidAmount = Number(invoice.paidAmount || 0);
+    const isDisabled = paidAmount <= 0;
+
     return (
       <Button
         size="small"
         variant="outlined"
         color="primary"
+        disabled={isDisabled}
         startIcon={<ReceiptIcon />}
         onClick={(e) => {
           e.stopPropagation();
+          if (isDisabled) return;
           setSelectedInvoiceForClaim(invoice);
           // Initialize refund quantities with 0 (user will enter refund amounts)
           const initialQuantities: Record<number, string> = {};
@@ -617,7 +658,7 @@ const Invoices = () => {
   };
 
   // Handle Claim/Refund submission
-  const handleClaimRefundSubmit = () => {
+  const handleClaimRefundSubmit = async () => {
     if (!selectedInvoiceForClaim) return;
 
     // Check for invalid quantities (refund > original)
@@ -650,13 +691,17 @@ const Invoices = () => {
 
           // Only include items with refund quantity > 0
           if (refundQty > 0 && refundQty <= originalQty) {
+            const productId = typeof item.product === 'object' ? item.product?.id : null;
+            if (!productId) {
+              return null;
+            }
             return {
               itemId: item.id,
-              productId: typeof item.product === 'object' ? item.product?.id : null,
+              productId: productId,
               originalQuantity: originalQty,
               refundQuantity: refundQty,
               unit: item.unit || '',
-              unitPrice: item.unitPrice || 0,
+              unitPrice: String(item.unitPrice || 0),
               refundAmount: refundQty * (item.unitPrice || 0),
             };
           }
@@ -670,28 +715,64 @@ const Invoices = () => {
       return;
     }
 
+    const customerId =
+      typeof selectedInvoiceForClaim.customer === 'object'
+        ? selectedInvoiceForClaim.customer?.id
+        : null;
+    const warehouseId =
+      typeof selectedInvoiceForClaim.warehouse === 'object'
+        ? selectedInvoiceForClaim.warehouse?.id
+        : null;
+
+    if (!customerId || !warehouseId) {
+      alert('Invalid customer or warehouse information.');
+      return;
+    }
+
     // Build payload
-    const payload = {
+    const payload: CreateRefundData = {
       invoiceId: selectedInvoiceForClaim.id,
-      invoiceNumber: selectedInvoiceForClaim.invoiceNumber || `#${selectedInvoiceForClaim.id}`,
-      customerId:
-        typeof selectedInvoiceForClaim.customer === 'object'
-          ? selectedInvoiceForClaim.customer?.id
-          : null,
-      warehouseId:
-        typeof selectedInvoiceForClaim.warehouse === 'object'
-          ? selectedInvoiceForClaim.warehouse?.id
-          : null,
+      invoiceNumber: selectedInvoiceForClaim.invoiceNumber || `${selectedInvoiceForClaim.id}`,
+      customerId: customerId,
+      warehouseId: warehouseId,
       refundItems: refundItems,
-      reason: refundReason || null,
+      reason: refundReason || undefined,
       totalRefundAmount: refundItems.reduce((sum, item) => sum + (item?.refundAmount || 0), 0),
     };
 
-    // Show payload in alert (for now, until API is ready)
-    alert(`Claim/Refund Payload:\n\n${JSON.stringify(payload, null, 2)}`);
-
-    // TODO: Make API call when backend is ready
-    // await claimRefundService.submit(payload);
+    try {
+      setSaving(true);
+      await refundService.create(payload);
+      alert('Refund submitted successfully!');
+      // Close modal and reset state
+      setClaimRefundModalOpen(false);
+      setSelectedInvoiceForClaim(null);
+      setRefundQuantities({});
+      setRefundReason('');
+      // Refresh invoices
+      await fetchInvoices();
+    } catch (err: unknown) {
+      console.error('Error submitting refund:', err);
+      let errorMessage = 'Failed to submit refund';
+      if (err && typeof err === 'object') {
+        if (
+          'response' in err &&
+          err.response &&
+          typeof err.response === 'object' &&
+          'data' in err.response
+        ) {
+          const responseData = err.response.data;
+          if (responseData && typeof responseData === 'object' && 'message' in responseData) {
+            errorMessage = String(responseData.message);
+          }
+        } else if ('message' in err) {
+          errorMessage = String(err.message);
+        }
+      }
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Generate and download PDF
@@ -887,7 +968,7 @@ const Invoices = () => {
     },
     {
       key: 'total',
-      label: 'Total',
+      label: 'Invoice Total',
       render: (row: Invoice) => `${Number(row.total || 0).toFixed(2)}`,
     },
     {
@@ -897,7 +978,7 @@ const Invoices = () => {
     },
     {
       key: 'remainingAmount',
-      label: 'Remaining',
+      label: 'Due',
       render: (row: Invoice) => {
         const remaining = Number(row.total || 0) - Number(row.paidAmount || 0);
         return `${remaining.toFixed(2)}`;
@@ -907,11 +988,22 @@ const Invoices = () => {
       key: 'totalBalance',
       label: 'Total Balance',
       render: (row: Invoice) => {
-        if (typeof row.customer === 'object' && row.customer) {
-          const customer = row.customer as { balance?: number };
-          if (customer.balance !== undefined) {
-            return `${Number(customer.balance || 0).toFixed(2)}`;
-          }
+        const customerId = typeof row.customer === 'object' ? row.customer?.id : null;
+        if (customerId && totalBalancePerCustomer.has(customerId)) {
+          const totalBalance = totalBalancePerCustomer.get(customerId) || 0;
+          return `${Number(totalBalance).toFixed(2)}`;
+        }
+        return '-';
+      },
+    },
+    {
+      key: 'totalReceived',
+      label: 'Total Received',
+      render: (row: Invoice) => {
+        const customerId = typeof row.customer === 'object' ? row.customer?.id : null;
+        if (customerId && totalReceivedPerCustomer.has(customerId)) {
+          const totalReceived = totalReceivedPerCustomer.get(customerId) || 0;
+          return `${Number(totalReceived).toFixed(2)}`;
         }
         return '-';
       },
@@ -1069,7 +1161,12 @@ const Invoices = () => {
                               return label.toLowerCase().startsWith(inputValue.toLowerCase());
                             });
                           }}
-                          disabled={saving}
+                          disabled={
+                            saving ||
+                            (!!selectedInvoice &&
+                              field.key !== 'paidAmount' &&
+                              field.key !== 'notes')
+                          }
                           size="small"
                           fullWidth
                           renderInput={(params) => (
@@ -1090,12 +1187,12 @@ const Invoices = () => {
                             isTextarea
                               ? undefined
                               : field.type === 'number'
-                                ? 'text'
-                                : field.type || 'text'
+                              ? 'text'
+                              : field.type || 'text'
                           }
                           value={
                             field.type === 'number'
-                              ? (numberFieldInputs[field.key] ?? '')
+                              ? numberFieldInputs[field.key] ?? ''
                               : fieldValue
                           }
                           onChange={(e) => {
@@ -1237,7 +1334,12 @@ const Invoices = () => {
                           required={field.required === true}
                           size="small"
                           fullWidth
-                          disabled={saving}
+                          disabled={
+                            saving ||
+                            (!!selectedInvoice &&
+                              field.key !== 'paidAmount' &&
+                              field.key !== 'notes')
+                          }
                           sx={{ width: '100%' }}
                           placeholder={field.type === 'number' ? '0.00' : undefined}
                         />
@@ -1315,7 +1417,7 @@ const Invoices = () => {
                                 option.name.toLowerCase().startsWith(inputValue.toLowerCase()),
                               );
                             }}
-                            disabled={saving}
+                            disabled={saving || !!selectedInvoice}
                             size="small"
                             fullWidth
                             renderInput={(params) => (
@@ -1349,7 +1451,7 @@ const Invoices = () => {
                                   .startsWith(inputValue.toLowerCase()),
                               );
                             }}
-                            disabled={!item.productId || saving}
+                            disabled={!item.productId || saving || !!selectedInvoice}
                             size="small"
                             fullWidth
                             renderInput={(params) => (
@@ -1379,7 +1481,7 @@ const Invoices = () => {
                             required
                             size="small"
                             fullWidth
-                            disabled={saving}
+                            disabled={saving || !!selectedInvoice}
                             inputProps={{ min: 1, step: 0.01 }}
                             helperText={
                               item.productId
@@ -1432,7 +1534,7 @@ const Invoices = () => {
                                 String(option).toLowerCase().startsWith(inputValue.toLowerCase()),
                               );
                             }}
-                            disabled={!item.productId || saving}
+                            disabled={!item.productId || saving || !!selectedInvoice}
                             size="small"
                             fullWidth
                             renderInput={(params) => (
@@ -1584,13 +1686,13 @@ const Invoices = () => {
                           required
                           size="small"
                           fullWidth
-                          disabled={saving}
+                          disabled={saving || !!selectedInvoice}
                           placeholder="0.00"
                         />
                       </Box>
 
                       {/* Delete Button Row - Bottom of block */}
-                      {items.length > 1 && (
+                      {items.length > 1 && !selectedInvoice && (
                         <Box
                           sx={{ display: 'flex', justifyContent: 'flex-end', width: '100%', mt: 1 }}
                         >
@@ -1613,7 +1715,7 @@ const Invoices = () => {
                   onClick={handleAddItem}
                   variant="outlined"
                   size="small"
-                  disabled={saving}
+                  disabled={saving || !!selectedInvoice}
                   fullWidth
                 >
                   Add Item
@@ -1974,8 +2076,8 @@ const Invoices = () => {
                                             isInvalid
                                               ? `Cannot exceed ${originalQty}`
                                               : refundQty > 0
-                                                ? `Refund: ${refundAmount.toFixed(2)}`
-                                                : ''
+                                              ? `Refund: ${refundAmount.toFixed(2)}`
+                                              : ''
                                           }
                                           sx={{ width: '100px' }}
                                         />
@@ -2058,6 +2160,7 @@ const Invoices = () => {
                 onClick={handleClaimRefundSubmit}
                 color="primary"
                 variant="contained"
+                disabled={saving}
                 startIcon={<ReceiptIcon />}
                 sx={{
                   backgroundColor: '#1976d2',
@@ -2066,7 +2169,7 @@ const Invoices = () => {
                   },
                 }}
               >
-                Submit
+                {saving ? 'Submitting...' : 'Submit'}
               </Button>
             </DialogActions>
           </Dialog>

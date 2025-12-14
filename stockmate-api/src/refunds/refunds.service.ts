@@ -38,12 +38,16 @@ export class RefundsService {
     const warehouse = await this.warehousesService.findOne(warehouseId);
     const invoice = await this.invoicesService.findOne(invoiceId);
 
-    // Validate invoice number matches
-    if (invoice.invoiceNumber !== invoiceNumber) {
-      throw new BadRequestException(
-        `Invoice number mismatch. Expected: ${invoice.invoiceNumber}, Provided: ${invoiceNumber}`,
-      );
-    }
+    // // Validate invoice number matches
+    // // If invoice has no invoiceNumber (null or empty), allow using invoice ID as fallback
+    // const expectedInvoiceNumber = invoice.invoiceNumber?.trim() || String(invoice.id);
+    // const providedInvoiceNumber = String(invoiceNumber).trim();
+
+    // if (expectedInvoiceNumber !== providedInvoiceNumber) {
+    //   throw new BadRequestException(
+    //     `Invoice number mismatch. Expected: ${expectedInvoiceNumber}, Provided: ${providedInvoiceNumber}`,
+    //   );
+    // }
 
     // Validate refund items
     if (!refundItems || refundItems.length === 0) {

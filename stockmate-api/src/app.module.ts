@@ -12,6 +12,7 @@ import { AuthModule } from './auth/auth.module';
 import { FabricsModule } from './fabrics/fabrics.module';
 import { ColorsModule } from './colors/colors.module';
 import { DatabaseModule } from './database/database.module';
+import { RefundsModule } from './refunds/refunds.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { DatabaseModule } from './database/database.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    // For Local Development
     // TypeOrmModule.forRootAsync({
     //   inject: [ConfigService],
     //   useFactory: (configService: ConfigService) => ({
@@ -33,6 +35,8 @@ import { DatabaseModule } from './database/database.module';
     //     logging: configService.get('NODE_ENV') === 'development',
     //   }),
     // }),
+
+    // For Production
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
@@ -53,6 +57,7 @@ import { DatabaseModule } from './database/database.module';
     ColorsModule,
     CustomersModule,
     InvoicesModule,
+    RefundsModule,
     UsersModule,
     AuthModule,
   ],

@@ -1090,12 +1090,12 @@ const Invoices = () => {
                             isTextarea
                               ? undefined
                               : field.type === 'number'
-                              ? 'text'
-                              : field.type || 'text'
+                                ? 'text'
+                                : field.type || 'text'
                           }
                           value={
                             field.type === 'number'
-                              ? numberFieldInputs[field.key] ?? ''
+                              ? (numberFieldInputs[field.key] ?? '')
                               : fieldValue
                           }
                           onChange={(e) => {
@@ -1974,8 +1974,8 @@ const Invoices = () => {
                                             isInvalid
                                               ? `Cannot exceed ${originalQty}`
                                               : refundQty > 0
-                                              ? `Refund: ${refundAmount.toFixed(2)}`
-                                              : ''
+                                                ? `Refund: ${refundAmount.toFixed(2)}`
+                                                : ''
                                           }
                                           sx={{ width: '100px' }}
                                         />

@@ -3,6 +3,7 @@ import { BaseEntity } from '../../common/entities/base.entity';
 import { Customer } from '../../customers/entities/customer.entity';
 import { Warehouse } from '../../warehouses/entities/warehouse.entity';
 import { InvoiceItem } from './invoice-item.entity';
+import { Refund } from '../../refunds/entities/refund.entity';
 
 export enum InvoiceStatus {
   PENDING = 'pending',
@@ -43,4 +44,7 @@ export class Invoice extends BaseEntity {
 
   @OneToMany(() => InvoiceItem, (item) => item.invoice, { cascade: true })
   items: InvoiceItem[];
+
+  @OneToMany(() => Refund, (refund) => refund.invoice)
+  refunds: Refund[];
 }

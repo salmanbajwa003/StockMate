@@ -129,7 +129,10 @@ export class InvoicesService {
       .leftJoinAndSelect('invoice.customer', 'customer')
       .leftJoinAndSelect('invoice.warehouse', 'warehouse')
       .leftJoinAndSelect('invoice.items', 'items')
-      .leftJoinAndSelect('items.product', 'product');
+      .leftJoinAndSelect('items.product', 'product')
+      .leftJoinAndSelect('invoice.refunds', 'refunds')
+      .leftJoinAndSelect('refunds.items', 'refundItems')
+      .leftJoinAndSelect('refundItems.product', 'refundProduct');
 
     return await query.orderBy('invoice.createdAt', 'DESC').getMany();
   }
@@ -137,7 +140,15 @@ export class InvoicesService {
   async findOne(id: number): Promise<Invoice> {
     const invoice = await this.invoicesRepository.findOne({
       where: { id },
-      relations: ['customer', 'warehouse', 'items', 'items.product'],
+      relations: [
+        'customer',
+        'warehouse',
+        'items',
+        'items.product',
+        'refunds',
+        'refunds.items',
+        'refunds.items.product',
+      ],
     });
 
     if (!invoice) {

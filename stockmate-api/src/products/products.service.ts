@@ -200,4 +200,35 @@ export class ProductsService {
       },
     );
   }
+
+  /**
+   * Adjusts the quantity of a product in a specific warehouse
+   * Used for refunds to add quantities back to inventory
+   */
+  async adjustWarehouseQuantity(
+    productId: number,
+    warehouseId: number,
+    adjustment: number,
+  ): Promise<void> {
+    const productWarehouse = await this.getProductWarehouse(productId, warehouseId);
+
+    if (!productWarehouse) {
+      throw new NotFoundException(
+        `Product ${productId} is not available in warehouse ${warehouseId}`,
+      );
+    }
+
+    const newQuantity = Number(productWarehouse.quantity) + adjustment;
+
+    if (newQuantity < 0) {
+      throw new BadRequestException(
+        `Insufficient quantity. Current: ${productWarehouse.quantity}, Adjustment: ${adjustment}`,
+      );
+    }
+
+    await this.productWarehouseRepository.update(
+      { id: productWarehouse.id },
+      { quantity: newQuantity },
+    );
+  }
 }

@@ -29,4 +29,7 @@ export class Customer extends BaseEntity {
 
   @Column({ length: 50, nullable: true })
   driver_no: string;
+
+  @Column({ length: 50, nullable: true })
+  vehicle_number: string;
 }

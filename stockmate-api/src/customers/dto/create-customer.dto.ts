@@ -46,4 +46,9 @@ export class CreateCustomerDto {
   @IsString()
   @IsOptional()
   driver_no?: string;
+
+  @ApiPropertyOptional({ example: 'ABC-1234' })
+  @IsString()
+  @IsOptional()
+  vehicle_number?: string;
 }

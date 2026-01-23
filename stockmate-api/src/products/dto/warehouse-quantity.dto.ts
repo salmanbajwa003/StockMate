@@ -1,6 +1,6 @@
 import { IsNumber, IsEnum, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { UnitType } from '@/common/utils/unit-converter';
+import { UnitType } from '../../common/utils/unit-converter';
 
 export class WarehouseQuantityDto {
   @ApiProperty({ example: 1 })

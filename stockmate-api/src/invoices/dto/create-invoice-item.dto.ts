@@ -8,6 +8,11 @@ export class CreateInvoiceItemDto {
   @IsNotEmpty()
   productId: number;
 
+  @ApiProperty({ example: 1 })
+  @IsNumber()
+  @IsNotEmpty()
+  warehouseId: number;
+
   @ApiProperty({ example: 5 })
   @IsNumber()
   @Min(1)

@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { CreateInvoiceItemDto } from './dto/create-invoice-item.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { Invoice, InvoiceStatus } from './entities/invoice.entity';
 import { InvoiceItem } from './entities/invoice-item.entity';
@@ -29,14 +30,18 @@ export class InvoicesService {
   async create(createInvoiceDto: CreateInvoiceDto): Promise<Invoice> {
     const { customerId, warehouseId, items, ...invoiceData } = createInvoiceDto;
 
-    // Verify customer and warehouse exist
+    // Verify customer exists
     const customer = await this.customersService.findOne(customerId);
-    const warehouse = await this.warehousesService.findOne(warehouseId);
 
     // Validate items and check warehouse availability
     if (!items || items.length === 0) {
       throw new BadRequestException('Invoice must have at least one item');
     }
+
+    // Use the first item's warehouse as the invoice warehouse (for backward compatibility)
+    // Or use the provided warehouseId if items don't have warehouseId
+    const firstItemWarehouseId = items[0]?.warehouseId || warehouseId;
+    const warehouse = await this.warehousesService.findOne(firstItemWarehouseId);
 
     // Create invoice items
     const invoiceItems: InvoiceItem[] = [];
@@ -44,14 +49,19 @@ export class InvoicesService {
     for (const itemDto of items) {
       const product = await this.productsService.findOne(itemDto.productId);
 
-      // Check warehouse availability
+      // Verify warehouse exists
+      const itemWarehouse = await this.warehousesService.findOne(itemDto.warehouseId);
+
+      // Check warehouse availability using item's warehouseId
       const productWarehouse = await this.productsService.getProductWarehouse(
         itemDto.productId,
-        warehouseId,
+        itemDto.warehouseId,
       );
 
       if (!productWarehouse) {
-        throw new BadRequestException(`Product ${product.name} is not available in this warehouse`);
+        throw new BadRequestException(
+          `Product ${product.name} is not available in warehouse ${itemWarehouse.name}`,
+        );
       }
 
       // Validate that the unit matches the product warehouse unit
@@ -63,7 +73,7 @@ export class InvoicesService {
 
       if (productWarehouse.quantity < itemDto.quantity) {
         throw new BadRequestException(
-          `Insufficient quantity for product ${product.name}. Available: ${productWarehouse.quantity}, Requested: ${itemDto.quantity}`,
+          `Insufficient quantity for product ${product.name} in warehouse ${itemWarehouse.name}. Available: ${productWarehouse.quantity}, Requested: ${itemDto.quantity}`,
         );
       }
 
@@ -103,7 +113,8 @@ export class InvoicesService {
     const savedInvoice = await this.invoicesRepository.save(invoice);
 
     // Deduct from warehouse quantities when invoice is created
-    await this.deductQuantities(savedInvoice);
+    // Use the warehouseId from each item's DTO
+    await this.deductQuantities(savedInvoice, items);
 
     return savedInvoice;
   }
@@ -116,10 +127,23 @@ export class InvoicesService {
     return items.reduce((sum, item) => sum + this.calculateItemTotal(item), 0);
   }
 
-  private async deductQuantities(invoice: Invoice): Promise<void> {
+  private async deductQuantities(
+    invoice: Invoice,
+    itemsDto: CreateInvoiceItemDto[],
+  ): Promise<void> {
     // Deduct warehouse quantity for each item in the invoice
-    for (const item of invoice.items) {
-      await this.productsService.adjustQuantity(item.product.id, -item.quantity);
+    // Use the warehouseId from each item's DTO
+    for (let i = 0; i < invoice.items.length; i++) {
+      const item = invoice.items[i];
+      const itemDto = itemsDto[i];
+      
+      // Use adjustWarehouseQuantity to deduct from the specific warehouse for this item
+      await this.productsService.adjustWarehouseQuantity(
+        item.product.id,
+        itemDto.warehouseId,
+        -item.quantity,
+        
+      );
     }
   }
 

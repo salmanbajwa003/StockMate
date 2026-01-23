@@ -1,6 +1,11 @@
 import { Entity, Column } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity';
 
+export enum CustomerType {
+  CASH = 'Cash',
+  CREDIT = 'Credit',
+}
+
 @Entity('customers')
 export class Customer extends BaseEntity {
   @Column({ length: 100 })
@@ -32,4 +37,11 @@ export class Customer extends BaseEntity {
 
   @Column({ length: 50, nullable: true })
   vehicle_number: string;
+
+  @Column({
+    type: 'enum',
+    enum: CustomerType,
+    default: CustomerType.CREDIT,
+  })
+  customerType: CustomerType;
 }

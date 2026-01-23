@@ -2,7 +2,7 @@ import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { Product } from './product.entity';
 import { Warehouse } from '../../warehouses/entities/warehouse.entity';
-import { UnitType } from '@/common/utils/unit-converter';
+import { UnitType } from '../../common/utils/unit-converter';
 
 @Entity('product_warehouses')
 export class ProductWarehouse extends BaseEntity {

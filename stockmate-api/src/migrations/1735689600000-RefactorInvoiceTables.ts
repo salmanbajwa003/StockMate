@@ -33,18 +33,39 @@ export class RefactorInvoiceTables1735689600000 implements MigrationInterface {
       `);
     }
 
-    // Add unit column to invoice_items table (nullable first to allow data migration)
-    await queryRunner.query(`
-      ALTER TABLE "invoice_items" 
-      ADD COLUMN IF NOT EXISTS "unit" unit_type_enum
+    // Check if unit column already exists in invoice_items
+    const columnExists = await queryRunner.query(`
+      SELECT column_name, udt_name
+      FROM information_schema.columns
+      WHERE table_name = 'invoice_items' AND column_name = 'unit'
     `);
+
+    if (columnExists.length === 0) {
+      // Add unit column to invoice_items table (nullable first to allow data migration)
+      await queryRunner.query(`
+        ALTER TABLE "invoice_items" 
+        ADD COLUMN "unit" unit_type_enum
+      `);
+    } else {
+      // Column exists, check if it needs type conversion
+      const currentType = columnExists[0].udt_name;
+      if (currentType !== 'unit_type_enum') {
+        // Alter the column type to unit_type_enum via text conversion
+        await queryRunner.query(`
+          ALTER TABLE "invoice_items" 
+          ALTER COLUMN "unit" TYPE unit_type_enum 
+          USING "unit"::text::unit_type_enum
+        `);
+      }
+    }
 
     // Update unit for existing invoice_items based on product warehouse
     // This is a data migration - set unit for existing records
+    // Cast the enum from product_warehouses_unit_enum to unit_type_enum via text
     await queryRunner.query(`
       UPDATE "invoice_items" ii
       SET "unit" = COALESCE((
-        SELECT pw."unit"
+        SELECT pw."unit"::text::unit_type_enum
         FROM "product_warehouses" pw
         WHERE pw."product_id" = ii."product_id"
         LIMIT 1
@@ -60,10 +81,11 @@ export class RefactorInvoiceTables1735689600000 implements MigrationInterface {
     `);
 
     // Calculate total for existing invoices before removing columns
+    // Note: column name is unitPrice (camelCase) in the database
     await queryRunner.query(`
       UPDATE "invoices" i
       SET "total" = COALESCE((
-        SELECT SUM(ii."quantity" * ii."unit_price")
+        SELECT SUM(ii."quantity" * ii."unitPrice")
         FROM "invoice_items" ii
         WHERE ii."invoice_id" = i."id"
       ), 0)
@@ -117,6 +139,12 @@ export class RefactorInvoiceTables1735689600000 implements MigrationInterface {
     `);
 
     // Update invoice status enum to only have PENDING and PAID
+    // First, drop the default value
+    await queryRunner.query(`
+      ALTER TABLE "invoices" 
+      ALTER COLUMN "status" DROP DEFAULT
+    `);
+
     await queryRunner.query(`
       CREATE TYPE "invoice_status_enum_new" AS ENUM ('pending', 'paid')
     `);

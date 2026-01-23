@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsEmail, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsEmail, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CustomerType } from '../entities/customer.entity';
 
 export class CreateCustomerDto {
   @ApiProperty({ example: 'John Doe' })
@@ -51,4 +52,14 @@ export class CreateCustomerDto {
   @IsString()
   @IsOptional()
   vehicle_number?: string;
+
+  @ApiPropertyOptional({ 
+    example: CustomerType.CREDIT,
+    enum: CustomerType,
+    description: 'Customer type: Cash or Credit',
+    default: CustomerType.CREDIT,
+  })
+  @IsEnum(CustomerType)
+  @IsOptional()
+  customerType?: CustomerType;
 }

@@ -14,12 +14,13 @@ export class InvoiceItem extends BaseEntity {
   @JoinColumn({ name: 'product_id' })
   product: Product;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
   quantity: number;
 
   @Column({
     type: 'enum',
     enum: UnitType,
+    enumName: 'unit_type_enum', // Use the shared enum type created by migration
   })
   unit: UnitType;
 
